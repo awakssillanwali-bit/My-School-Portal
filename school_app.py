@@ -956,7 +956,7 @@ elif core_choice == "Students Mgt":
                     fn_en = father_name if st.session_state.ui_lang == "English" else ""
                     ad_en = address if st.session_state.ui_lang == "English" else ""
                     
-                    try:
+                try:
                         cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", 
                                        (guardian_username.strip(), guardian_password.strip(), "Guardian"))
                         
@@ -966,7 +966,7 @@ elif core_choice == "Students Mgt":
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active')
                         """, (auto_reg_no, name, father_name, student_dob.strftime("%Y-%m-%d"), blood_group, student_class, student_section, b_form, phone, address, prev_school, prev_class, medical_info, fixed_fee, admission_date.strftime("%Y-%m-%d"), initial_arrears, gender, mname, fcnic, mcnic, photo_data, g_type, f_prof, n_en, fn_en, ad_en))
                         
-                    conn.commit()
+                conn.commit()
                     st.success(tr("✅ طالب علم کا داخلہ اور والدین کا اکاؤنٹ کامیابی سے محفوظ ہو گیا!", "Student record and parent account saved successfully!"))
                     import time
                     time.sleep(1)
