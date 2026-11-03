@@ -975,7 +975,6 @@ elif core_choice == "Students Mgt":
                 except sqlite3.IntegrityError:
                     st.error(tr("⚠️ یہ یوزر نیم پہلے سے موجود ہے۔ برائے مہربانی والدین کے لیے کوئی منفرد نام (جیسے فون نمبر) استعمال کریں۔", "Username already exists. Please use a unique one like a phone number."))
                 
-                # 🟢 آپ نے بس یہ نیچے والا حصہ شامل کرنا ہے (باقی اوپر والا ویسے ہی رہے گا)
                 except sqlite3.OperationalError as e:
                     error_msg = str(e)
                     if "has no column named" in error_msg:
@@ -992,7 +991,6 @@ elif core_choice == "Students Mgt":
                         
                 except Exception as e:
                     st.error(f"⚠️ ایک نیا مسئلہ پیش آیا: {e}")
-
     elif sub_choice == "Edit Record":
         st.markdown("### ✏️ طالب علم کا ریکارڈ ایڈٹ کریں")
         edit_reg = st.text_input(tr("رجسٹریشن نمبر لکھیں (مثلاً: 1001)", "Enter Registration No to Edit"))
