@@ -966,11 +966,11 @@ elif core_choice == "Students Mgt":
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active')
                         """, (auto_reg_no, name, father_name, student_dob.strftime("%Y-%m-%d"), blood_group, student_class, student_section, b_form, phone, address, prev_school, prev_class, medical_info, fixed_fee, admission_date.strftime("%Y-%m-%d"), initial_arrears, gender, mname, fcnic, mcnic, photo_data, g_type, f_prof, n_en, fn_en, ad_en))
                         
-                    conn.commit()
-                    st.success(tr("✅ طالب علم کا داخلہ اور والدین کا اکاؤنٹ کامیابی سے محفوظ ہو گیا!", "Student record and parent account saved successfully!"))
-                    import time
-                    time.sleep(1)
-                    st.rerun()
+                        conn.commit()
+                        st.success(tr("✅ طالب علم کا داخلہ اور والدین کا اکاؤنٹ کامیابی سے محفوظ ہو گیا!", "Student record and parent account saved successfully!"))
+                        import time
+                        time.sleep(1)
+                        st.rerun()
 
                 except sqlite3.IntegrityError:
                     st.error(tr("⚠️ یہ یوزر نیم پہلے سے موجود ہے۔ برائے مہربانی والدین کے لیے کوئی منفرد نام (جیسے فون نمبر) استعمال کریں۔", "Username already exists. Please use a unique one like a phone number."))
