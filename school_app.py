@@ -230,7 +230,7 @@ DB_FILE = get_current_db_filename()
 
 def init_db():
     conn = sqlite3.connect('school_data.db', check_same_thread=False, timeout=20)
-cursor = conn.cursor()
+    cursor = conn.cursor()
 
 # 🟢 پرانے ڈیٹا بیس میں نئے کالمز شامل کرنے کا کوڈ (Migration)
 try:
