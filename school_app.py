@@ -230,7 +230,20 @@ DB_FILE = get_current_db_filename()
 
 def init_db():
     conn = sqlite3.connect('school_data.db', check_same_thread=False, timeout=20)
-    cursor = conn.cursor()
+cursor = conn.cursor()
+
+# 🟢 پرانے ڈیٹا بیس میں نئے کالمز شامل کرنے کا کوڈ (Migration)
+try:
+    cursor.execute("ALTER TABLE students ADD COLUMN gender TEXT DEFAULT 'Male'")
+    conn.commit()
+except:
+    pass
+
+try:
+    cursor.execute("ALTER TABLE students ADD COLUMN mname TEXT DEFAULT ''")
+    conn.commit()
+except:
+    pass
     cursor.execute('''CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, blob_value BLOB)''')
     cursor.execute("SELECT value FROM settings WHERE key='password'")
     if not cursor.fetchone():
