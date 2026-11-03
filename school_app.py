@@ -220,6 +220,7 @@ def print_button_js(html_content, btn_text, landscape=False):
 # ----------------- ڈیٹا بیس اور سیشن کنکشن (Session Routing) -----------------
 import os
 import sqlite3
+import streamlit as st
 
 SESSION_TRACKER_FILE = "active_session_db.txt"
 
@@ -231,9 +232,17 @@ def get_current_db_filename():
 
 DB_FILE = get_current_db_filename()
 
+# 🟢 نیا سمارٹ کیشنگ سسٹم جو ڈیٹا بیس کو لاک نہیں ہونے دے گا
+@st.cache_resource
+def get_db_connection():
+    conn = sqlite3.connect('school_data.db', check_same_thread=False, timeout=30)
+    # WAL Mode آن کریں جو لاکنگ (Locking) کا مستقل خاتمہ کرتا ہے
+    conn.execute('PRAGMA journal_mode=WAL;')
+    return conn
+
 def init_db():
-    # 1. کنکشن بنائیں
-    conn = sqlite3.connect('school_data.db', check_same_thread=False, timeout=20)
+    # 1. کیش کیا ہوا ماسٹر کنکشن حاصل کریں
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # 2. تمام ضروری ٹیبلز بنائیں
@@ -256,25 +265,25 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS exam_marks (id INTEGER PRIMARY KEY AUTOINCREMENT, exam_name TEXT, reg_id TEXT, subject TEXT, total_marks REAL, obtained_marks REAL)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS notices (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, audience TEXT, title TEXT, details TEXT)''')
     
-    # 🟢 نیا ٹرانسپورٹ اور جی پی ایس ڈیٹا بیس
+    # 🟢 ٹرانسپورٹ اور جی پی ایس
     cursor.execute('''CREATE TABLE IF NOT EXISTS transport (vehicle_id TEXT PRIMARY KEY, type TEXT, driver_name TEXT, driver_phone TEXT, route_name TEXT, fare REAL, gps_device_id TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS transport_members (reg_id TEXT PRIMARY KEY, vehicle_id TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS live_locations (device_id TEXT PRIMARY KEY, lat REAL, lon REAL, last_updated TEXT, speed REAL)''')
     
-    # 🟢 نئے فیچرز (لائبریری، سیکیورٹی، انوینٹری، ہیلپ ڈیسک) کے ٹیبلز
+    # 🟢 لائبریری، انوینٹری، ہیلپ ڈیسک
     cursor.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, item_name TEXT, category TEXT, total_qty INTEGER, used_qty INTEGER DEFAULT 0)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, sender_name TEXT, sender_type TEXT, reg_id TEXT, subject TEXT, details TEXT, status TEXT DEFAULT 'Pending', admin_reply TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS books (book_id TEXT PRIMARY KEY, title TEXT, author TEXT, category TEXT, total_qty INTEGER, available_qty INTEGER)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS book_issue (id INTEGER PRIMARY KEY AUTOINCREMENT, book_id TEXT, issued_to_type TEXT, reg_id TEXT, issue_date TEXT, due_date TEXT, return_date TEXT, status TEXT DEFAULT 'Issued', fine REAL DEFAULT 0)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS visitors (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, time_in TEXT, time_out TEXT, name TEXT, phone TEXT, purpose TEXT, to_meet TEXT, status TEXT DEFAULT 'Inside')''')
 
-    # Academic Sessions Table
+    # Academic Sessions
     cursor.execute('''CREATE TABLE IF NOT EXISTS academic_sessions (session_name TEXT PRIMARY KEY, status TEXT)''')
     cursor.execute("SELECT COUNT(*) FROM academic_sessions")
     if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO academic_sessions VALUES ('2026-27', 'ACTIVE')")
 
-    # 3. پرانے ڈیٹا بیس میں نئے کالمز شامل کرنے کا کوڈ (Migration)
+    # 3. غائب کالمز کی چیکنگ (Migration)
     try:
         cursor.execute("ALTER TABLE students ADD COLUMN gender TEXT DEFAULT 'Male'")
     except:
@@ -286,12 +295,9 @@ def init_db():
         pass
 
     conn.commit()
-    
-    # 🟢 یہ سب سے اہم لائن ہے جو پہلے غائب تھی، جس سے ایرر آ رہا تھا
     return conn
 
 # ----------------- گلوبل کنکشن -----------------
-# اب ہم فنکشن کو کال کر کے کنکشن حاصل کر رہے ہیں
 conn = init_db()
 cursor = conn.cursor()
 
@@ -301,6 +307,7 @@ def get_active_session():
     return row[0] if row else "2026-27"
 
 active_session = get_active_session()
+
 # ================= لاگ ان اور سیکیورٹی سسٹم =================
 cursor.execute('''CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
