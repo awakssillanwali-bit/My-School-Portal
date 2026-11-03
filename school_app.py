@@ -229,7 +229,7 @@ def get_current_db_filename():
 DB_FILE = get_current_db_filename()
 
 def init_db():
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    conn = sqlite3.connect('school_data.db', check_same_thread=False, timeout=20)
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, blob_value BLOB)''')
     cursor.execute("SELECT value FROM settings WHERE key='password'")
