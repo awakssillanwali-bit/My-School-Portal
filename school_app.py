@@ -286,6 +286,15 @@ def get_active_session():
     return row[0] if row else "2026-27"
 
 active_session = get_active_session()
+conn = sqlite3.connect('school_data.db', check_same_thread=False, timeout=20)
+cursor = conn.cursor()
+
+# 🟢 پرانے ڈیٹا بیس میں نیا کالم شامل کرنے کا کوڈ (Migration)
+try:
+    cursor.execute("ALTER TABLE students ADD COLUMN gender TEXT DEFAULT 'Male'")
+    conn.commit()
+except:
+    pass # اگر کالم پہلے سے موجود ہوگا تو یہ اسے نظر انداز کر دے گا
 
 # ================= لاگ ان اور سیکیورٹی سسٹم =================
 cursor.execute('''CREATE TABLE IF NOT EXISTS users (
