@@ -601,9 +601,10 @@ Active Session {active_session}
         
         # ڈیٹا بیس سے ریکارڈ نکالنا (اگر name_en کالم موجود ہو تو وہ بھی لے آئے)
         try:
-            bday_students = pd.read_sql(f"SELECT name, name_en, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", conn)
+    bday_students = pd.read_sql(f"SELECT name, name_en, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", conn)
         except:
-            bday_students = pd.read_sql(f"SELECT name, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", conn)
+        import pandas as pd
+    bday_students = pd.DataFrame()
             
         try:
             bday_staff = pd.read_sql(f"SELECT name, name_en, designation FROM staff WHERE dob LIKE '%{today_md}'", conn)
