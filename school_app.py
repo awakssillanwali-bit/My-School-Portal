@@ -264,7 +264,6 @@ def init_db():
     school_whatsapp = settings_data.get("school_whatsapp", "0300-0000000")
     school_facebook = settings_data.get("school_facebook", "facebook.com/school")
     today_date = datetime.date.today().strftime("%Y-%m-%d")
-
 # لوگو (Logo) لوڈ کرنا
 logo_data = settings_data.get("school_logo")
 logo_src_b64 = ""
