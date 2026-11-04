@@ -557,14 +557,19 @@ Active Session {active_session}
             <div style="font-size: 11px; background: #2e7d32; color: white; padding: 3px 12px; border-radius: 20px; display: inline-block; font-weight: bold; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); margin-bottom: 15px;">
                 🛡️ {st.session_state.current_role}
             </div>
+            <div style="border-top: 1px solid rgba(46, 125, 50, 0.2); padding-top: 12px; width: 100%;">
+                <div style="font-size: 11.5px; color: #2e7d32; font-style: italic; line-height: 1.4;">
+                    "Wishing you a productive day! Let's achieve greatness today." ✨
+                </div>
+            </div>
         </div>
         """
         st.markdown(welcome_html, unsafe_allow_html=True)
-        with col_alerts:
+        
+    with col_alerts:
         # 🟢 نیا فیچر: برتھ ڈے الرٹ (Birthday Alerts)
         today_md = datetime.date.today().strftime("-%m-%d")
         
-        # ڈیٹا بیس سے ریکارڈ نکالنا
         try:
             bday_students = pd.read_sql(f"SELECT name, name_en, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", conn)
         except:
@@ -581,8 +586,6 @@ Active Session {active_session}
         
         if not bday_students.empty or not bday_staff.empty:
             bday_html = "<div style='background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); padding: 15px; border-radius: 12px; border: 2px solid #ff758c; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); margin-bottom: 15px; color: #d81b60;'>"
-            
-            # ٹائٹل زبان کے حساب سے
             bday_title = tr("🎂 آج ان کی سالگرہ ہے! (Happy Birthday)", "🎂 Happy Birthday! Today is their special day.")
             bday_html += f"<h4 style='margin:0 0 10px 0; display:flex; align-items:center; gap:8px;'>{bday_title}</h4><ul style='margin:0; padding-left:20px; font-size:14px; font-weight:bold;'>"
             
@@ -590,7 +593,6 @@ Active Session {active_session}
                 disp_name = str(r['name'])
                 if st.session_state.ui_lang == "English" and 'name_en' in r and pd.notna(r['name_en']) and str(r['name_en']).strip() not in ["", "None"]:
                     disp_name = str(r['name_en'])
-                    
                 stu_lbl = tr("طالب علم", "Student")
                 cls_lbl = tr("کلاس", "Class")
                 bday_html += f"<li>🎉 {disp_name} - {stu_lbl} ({cls_lbl} {r['class']} {r['section']})</li>"
@@ -599,15 +601,13 @@ Active Session {active_session}
                 disp_name = str(r['name'])
                 if st.session_state.ui_lang == "English" and 'name_en' in r and pd.notna(r['name_en']) and str(r['name_en']).strip() not in ["", "None"]:
                     disp_name = str(r['name_en'])
-                    
                 stf_lbl = tr("سٹاف", "Staff")
                 bday_html += f"<li>🎉 {disp_name} - {stf_lbl} ({r['designation']})</li>"
                 
             bday_html += "</ul></div>"
             st.markdown(bday_html, unsafe_allow_html=True)
-            st.balloons() # سکرین پر غبارے اڑیں گے
+            st.balloons()
             
-        # فیس ڈیفالٹرز کا بلنکر الرٹ
         defaulters_html = ""
         try:
             today_str = datetime.date.today().strftime("%Y-%m-%d")
@@ -619,7 +619,6 @@ Active Session {active_session}
                     f"🚨 الرٹ: {defaulters_count} طلباء کی فیس کی مقررہ تاریخ گزر چکی ہے! براہ کرم فیس کا سیکشن چیک کریں۔", 
                     f"🚨 ALERT: The fee due date for {defaulters_count} student(s) has passed! Please check the Fees section."
                 )
-                
                 defaulters_html = f"""
                 <style>
                 @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
@@ -629,16 +628,13 @@ Active Session {active_session}
                   border: 2px solid #b71c1c; box-shadow: 0px 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px;
                 }}
                 </style>
-                <div class="blink_text">
-                    {alert_text}
-                </div>
+                <div class="blink_text">{alert_text}</div>
                 """
         except: pass
             
         if defaulters_html:
             st.markdown(defaulters_html, unsafe_allow_html=True)
             
-        # سکول انفو کارڈ
         st.markdown(f"""
         <div style="background-color: #ffffff; padding: 25px; border-radius: 20px; border: 1px solid #edf2f7; box-shadow: 0 4px 6px rgba(0,0,0,0.02); display: flex; flex-direction: column; justify-content: center; height: { '190px' if defaulters_html else '100%' };">
             <h4 style="margin: 0 0 15px 0; color: #2d3748; font-weight:800; display:flex; align-items:center; gap:8px;">🏫 School Information</h4>
