@@ -599,11 +599,22 @@ Active Session {active_session}
         # 🟢 نیا فیچر: برتھ ڈے الرٹ (Birthday Alerts)
         today_md = datetime.date.today().strftime("-%m-%d")
         
-        # ڈیٹا بیس سے ریکارڈ نکالنا (اگر name_en کالم موجود ہو تو وہ بھی لے آئے)
+        # 🟢 کریش پروف سالگرہ (Birthday) سسٹم تاکہ ایپ کبھی بند نہ ہو
+    try:
+        # نیا کنکشن تاکہ کوئی مسئلہ نہ آئے
+        local_conn = get_db_connection()
+        today_md = datetime.date.today().strftime("%m-%d")
+        
+        # پہلی کوشش: سارے کالمز کے ساتھ
+        bday_students = pd.read_sql(f"SELECT name, name_en, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", local_conn)
+    except Exception:
         try:
-            bday_students = pd.read_sql(f"SELECT name, name_en, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", conn)
-        except:
-            bday_students = pd.read_sql(f"SELECT name, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", conn)
+            # دوسری کوشش: صرف ضروری کالمز کے ساتھ
+            bday_students = pd.read_sql(f"SELECT name, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", local_conn)
+        except Exception:
+            # 🟢 اگر ڈیٹا بیس میں dob کالم موجود ہی نہیں ہے، تو کریش ہونے کے بجائے خالی لسٹ بن جائے گی
+            import pandas as pd
+            bday_students = pd.DataFrame()
             
         try:
             bday_staff = pd.read_sql(f"SELECT name, name_en, designation FROM staff WHERE dob LIKE '%{today_md}'", conn)
