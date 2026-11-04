@@ -1098,7 +1098,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                         st.rerun()
                     except Exception as e: 
                         st.error(f"Error saving staff: {e}")
-                        elif sub_choice in ["ریکارڈ / ایڈٹ", "Edit/Search Staff"]:
+elif sub_choice in ["ریکارڈ / ایڈٹ", "Edit/Search Staff"]:
         st.markdown(f"### ✏️ {tr('سٹاف کا ریکارڈ دیکھیں یا ایڈٹ کریں', 'Search / Edit Staff Record')}")
         
         staff_df = pd.read_sql("SELECT * FROM staff", conn)
