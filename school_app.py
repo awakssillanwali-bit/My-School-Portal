@@ -340,7 +340,7 @@ def get_active_session():
         return row[0] if row else "2026-27"
     except:
         return "2026-27"
-    if not st.session_state.logged_in:
+if not st.session_state.logged_in:
     login_system()
     st.stop()
 active_session = get_active_session()
