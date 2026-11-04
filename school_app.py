@@ -971,18 +971,19 @@ elif core_choice == "Students Mgt":
                         conn.commit()
                     except: pass
 
-                # 🟢 اکاؤنٹ فائنڈر
+                # 🟢 اکاؤنٹ فائنڈر (Updated)
                 phone_val = str(stu_data.get('phone', '')).strip()
                 parent_user = f"parent_{edit_reg}"
                 
-                cursor.execute("SELECT username, password FROM users WHERE username=? OR (username=? AND username!='')", (parent_user, phone_val))
+                # نیا سمارٹ کیوری جو ref_id کے ذریعے درست اکاؤنٹ ڈھونڈ کر لائے گا
+                cursor.execute("SELECT username, password FROM users WHERE ref_id=? OR username=? OR (username=? AND username!='') LIMIT 1", (edit_reg, parent_user, phone_val))
                 user_row = cursor.fetchone()
                 
                 if user_row:
                     def_u, def_p = user_row[0], user_row[1]
                     acc_status = "<span style='color: green;'>✅ (پہلے سے اکاؤنٹ موجود ہے)</span>"
                 else:
-                    def_u, def_p = "", "" # اگر اکاؤنٹ نہیں ہے تو خانے خالی رہیں گے
+                    def_u, def_p = "", "" 
                     acc_status = "<span style='color: #d69e2e;'>⚠️ (کوئی اکاؤنٹ نہیں، نیا بنا سکتے ہیں)</span>"
 
                 with st.form("edit_student_form"):
