@@ -892,10 +892,26 @@ elif sub_choice in ["سرٹیفکیٹس اور لیٹر", "Certificates"]:
                 
                 if c_type == "School Leaving Certificate":
                     content += " The student has paid all dues and is leaving the school with our best wishes."
-elif c_type == "Character Certificate":
+elif sub_choice in ["سرٹیفکیٹس اور لیٹر", "Certificates"]:
+        st.markdown(f"### 📜 {tr('سرٹیفکیٹس اور لیٹرز', 'Certificates & Letters')}")
+        c_reg = st.text_input(tr("رجسٹریشن نمبر لکھیں", "Enter Registration No for Certificate"))
+        c_type = st.selectbox(tr("سرٹیفکیٹ کی قسم", "Certificate Type"), ["School Leaving Certificate", "Character Certificate", "Fee Clearance Letter"])
+        
+        if c_reg:
+            df_c = pd.read_sql(f"SELECT * FROM students WHERE reg_id='{c_reg}'", conn)
+            if not df_c.empty:
+                r = df_c.iloc[0]
+                n_val = get_disp_val(r.get('name'), r.get('name_en'))
+                fn_val = get_disp_val(r.get('fname'), r.get('fname_en'))
+                
+                content = f"This is to certify that <b>{n_val}</b> {get_relation_card_label(r.get('gender'), r.get('g_type'))} <b>{fn_val}</b> is/was a bonafide student of this school in Class {r.get('class')}."
+                
+                if c_type == "School Leaving Certificate":
+                    content += " The student has paid all dues and is leaving the school with our best wishes."
+                elif c_type == "Character Certificate":
                     content += " The student bears a good moral character and conduct."
-        else:
-                content += " All outstanding fees have been cleared by the student up to date."
+                else:
+                    content += " All outstanding fees have been cleared by the student up to date."
                 
                 html_cert = f"""
                 <div style="border: 10px solid #1a4f8b; padding: 40px; margin: auto; max-width: 800px; text-align: center; position: relative; background: #fdfbf7;">
