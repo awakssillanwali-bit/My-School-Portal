@@ -846,7 +846,8 @@ elif core_choice == "Students Mgt":
         </table></div>"""
 
     if sub_choice == "New Admission":
-        with st.form("student_form", clear_on_submit=True):
+        # فارم غائب نہ ہو اس لیے clear_on_submit=True ہٹا دیا گیا ہے
+        with st.form("student_form"):
             stud_count = pd.read_sql("SELECT COUNT(*) FROM students", conn).iloc[0, 0]
             auto_reg_no = "1001" if stud_count == 0 else str(safe_int(pd.read_sql("SELECT MAX(CAST(reg_id AS INTEGER)) FROM students", conn).iloc[0, 0]) + 1)
             st.markdown(f"### {tr('رجسٹریشن نمبر', 'Reg No')}: `{auto_reg_no}`")
@@ -885,33 +886,45 @@ elif core_choice == "Students Mgt":
             prev_class = c16.text_input(tr("سابقہ کلاس", "Previous Class"))
             
             c17, c18, c19, c20 = st.columns(4)
-            fixed_fee = c17.number_input(tr("مقررہ ماہانہ فیس *", "Monthly Fee *"), min_value=0)
+            fixed_fee = c17.number_input(tr("مقررہ ماہانہ فیس", "Monthly Fee"), min_value=0)
             initial_arrears = c18.number_input(tr("سابقہ بقایا جات", "Previous Arrears"), min_value=0, value=0)
             admission_date = c19.date_input(tr("تاریخِ داخلہ", "Admission Date"), max_value=datetime.date.today())
             medical_info = c20.text_input(tr("کوئی میڈیکل پیچیدگی؟", "Any Medical Issue?"))
             
             st.markdown(f"#### 🔒 {tr('والدین کا پورٹل لاگ ان (Parent Portal Login)', 'Parent Portal Login')}")
+            st.info(tr("اگر آپ ابھی اکاؤنٹ نہیں بنانا چاہتے تو ان خانوں کو خالی چھوڑ دیں، آپ بعد میں 'ایڈٹ ریکارڈ' سے بھی اکاؤنٹ بنا سکتے ہیں۔", "Leave empty if you don't want to create an account now. You can create it later from Edit Record."))
             c_log1, c_log2 = st.columns(2)
-            guardian_username = c_log1.text_input(tr("یوزر نیم (مثلاً ان کا فون نمبر) *", "Username (e.g. Phone No) *"))
-            guardian_password = c_log2.text_input(tr("پاسورڈ *", "Password *"), type="password")
+            guardian_username = c_log1.text_input(tr("یوزر نیم (اختیاری)", "Username (Optional)"))
+            guardian_password = c_log2.text_input(tr("پاسورڈ (اختیاری)", "Password (Optional)"))
             
-            submit_btn = st.form_submit_button(tr("طالب علم اور اکاؤنٹ محفوظ کریں", "Save Student & Account"))
+            submit_btn = st.form_submit_button(tr("طالب علم کا ڈیٹا محفوظ کریں", "Save Student Data"), type="primary")
             
             if submit_btn:
-                if not name:
-                    st.error(tr("طالب علم کا نام لکھنا لازمی ہے!", "Student name is required!"))
-                elif guardian_username.strip() == "" or guardian_password.strip() == "":
-                    st.error(tr("والدین کے لاگ ان کے لیے یوزر نیم اور پاسورڈ لازمی ہیں!", "Parent username and password are required!"))
+                if not name.strip():
+                    st.error(tr("⚠️ طالب علم کا نام لکھنا لازمی ہے۔", "⚠️ Student name is mandatory."))
                 else:
-                    photo_data = student_photo.read() if student_photo else None
+                    try:
+                        photo_data = student_photo.read() if student_photo else None
+                    except:
+                        photo_data = None
+                        
                     n_en = name if st.session_state.ui_lang == "English" else ""
                     fn_en = father_name if st.session_state.ui_lang == "English" else ""
                     ad_en = address if st.session_state.ui_lang == "English" else ""
                     
-                try:
-                        cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", 
-                                       (guardian_username.strip(), guardian_password.strip(), "Guardian"))
+                    try:
+                        # 🔴 آٹو جنریشن ختم، اب صرف تب اکاؤنٹ بنے گا جب یوزر نیم لکھا گیا ہو
+                        if guardian_username.strip():
+                            cursor.execute("SELECT id FROM users WHERE username=?", (guardian_username.strip(),))
+                            if cursor.fetchone():
+                                st.error(tr("⚠️ یہ یوزر نیم پہلے سے موجود ہے۔ برائے مہربانی کوئی مختلف نام استعمال کریں یا اسے خالی چھوڑ دیں۔", "Username already exists. Use a different one or leave empty."))
+                                st.stop() # اگر یوزر نیم موجود ہے تو یہیں رک جائے، ڈیٹا سیو نہ کرے
+                            else:
+                                pass_to_save = guardian_password.strip() if guardian_password.strip() else "1234"
+                                cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", 
+                                               (guardian_username.strip(), pass_to_save, "Guardian"))
                         
+                        # 🟢 سٹوڈنٹ کا ڈیٹا ہر حال میں سیو ہوگا
                         cursor.execute("""
                             INSERT INTO students 
                             (reg_id, name, fname, dob, blood, class, section, bform, phone, address, prev_school, prev_class, medical, monthly_fee, adm_date, arrears, gender, mname, fcnic, mcnic, photo, g_type, f_prof, name_en, fname_en, address_en, status) 
@@ -919,30 +932,31 @@ elif core_choice == "Students Mgt":
                         """, (auto_reg_no, name, father_name, student_dob.strftime("%Y-%m-%d"), blood_group, student_class, student_section, b_form, phone, address, prev_school, prev_class, medical_info, fixed_fee, admission_date.strftime("%Y-%m-%d"), initial_arrears, gender, mname, fcnic, mcnic, photo_data, g_type, f_prof, n_en, fn_en, ad_en))
                         
                         conn.commit()
-                        st.success(tr("✅ طالب علم کا داخلہ اور والدین کا اکاؤنٹ کامیابی سے محفوظ ہو گیا!", "Student record and parent account saved successfully!"))
-                        import time
-                        time.sleep(1)
-                        st.rerun()
-
-                except sqlite3.IntegrityError:
-                    st.error(tr("⚠️ یہ یوزر نیم پہلے سے موجود ہے۔ برائے مہربانی والدین کے لیے کوئی منفرد نام (جیسے فون نمبر) استعمال کریں۔", "Username already exists. Please use a unique one like a phone number."))
-                
-                except sqlite3.OperationalError as e:
-                    error_msg = str(e)
-                    if "has no column named" in error_msg:
-                        missing_col = error_msg.split("named ")[-1].replace("'", "").replace('"', "").strip()
-                        st.error(f"⚠️ ڈیٹا بیس ایرر: آپ کے ٹیبل میں '{missing_col}' کا کالم موجود نہیں ہے۔")
-                        st.info("💡 آپ کا ڈیٹا ختم نہیں ہوا۔ سسٹم نے کالم خود بنا دیا ہے، بس ایک بار پھر 'محفوظ کریں' کا بٹن دبائیں!")
-                        try:
-                            cursor.execute(f"ALTER TABLE students ADD COLUMN {missing_col} TEXT DEFAULT ''")
-                            conn.commit()
-                        except Exception as inner_e:
-                            st.error(f"کالم بنانے میں مسئلہ آیا: {inner_e}")
-                    else:
-                        st.error(f"⚠️ ڈیٹا بیس کا مسئلہ: {error_msg}")
+                        if guardian_username.strip():
+                            st.success(tr("✅ طالب علم کا داخلہ اور والدین کا اکاؤنٹ کامیابی سے محفوظ ہو گیا!", "Student and parent account saved successfully!"))
+                        else:
+                            st.success(tr("✅ طالب علم کا داخلہ محفوظ ہو گیا! (کوئی اکاؤنٹ نہیں بنایا گیا)", "Student record saved! (No account created)"))
                         
-                except Exception as e:
-                    st.error(f"⚠️ ایک نیا مسئلہ پیش آیا: {e}")
+                        import time
+                        time.sleep(1.5)
+                        st.rerun()
+                        
+                    except sqlite3.OperationalError as e:
+                        error_msg = str(e)
+                        if "has no column named" in error_msg:
+                            missing_col = error_msg.split("named ")[-1].replace("'", "").replace('"', "").strip()
+                            st.error(f"⚠️ ڈیٹا بیس ایرر: آپ کے ٹیبل میں '{missing_col}' کا کالم موجود نہیں ہے۔")
+                            st.info("💡 آپ کا ڈیٹا ختم نہیں ہوا۔ سسٹم نے کالم خود بنا دیا ہے، بس ایک بار پھر 'محفوظ کریں' کا بٹن دبائیں!")
+                            try:
+                                cursor.execute(f"ALTER TABLE students ADD COLUMN {missing_col} TEXT DEFAULT ''")
+                                conn.commit()
+                            except Exception as inner_e:
+                                pass
+                        else:
+                            st.error(f"⚠️ ڈیٹا بیس کا مسئلہ: {error_msg}")
+                            
+                    except Exception as e:
+                        st.error(f"⚠️ ایک نیا مسئلہ پیش آیا: {e}")
 
     elif sub_choice == "Edit Record":
         st.markdown("### ✏️ طالب علم کا ریکارڈ ایڈٹ کریں")
@@ -959,6 +973,7 @@ elif core_choice == "Students Mgt":
                         conn.commit()
                     except: pass
 
+                # 🟢 اکاؤنٹ فائنڈر
                 phone_val = str(stu_data.get('phone', '')).strip()
                 parent_user = f"parent_{edit_reg}"
                 
@@ -969,8 +984,8 @@ elif core_choice == "Students Mgt":
                     def_u, def_p = user_row[0], user_row[1]
                     acc_status = "<span style='color: green;'>✅ (پہلے سے اکاؤنٹ موجود ہے)</span>"
                 else:
-                    def_u, def_p = parent_user, "1234"
-                    acc_status = "<span style='color: #d69e2e;'>⚠️ (نیا اکاؤنٹ بنے گا)</span>"
+                    def_u, def_p = "", "" # اگر اکاؤنٹ نہیں ہے تو خانے خالی رہیں گے
+                    acc_status = "<span style='color: #d69e2e;'>⚠️ (کوئی اکاؤنٹ نہیں، نیا بنا سکتے ہیں)</span>"
 
                 with st.form("edit_student_form"):
                     curr_name = get_disp_val(stu_data.get("name", ""), stu_data.get("name_en", ""))
@@ -1038,6 +1053,7 @@ elif core_choice == "Students Mgt":
                                     WHERE reg_id=?
                                 """, (e_name, e_gender, e_mname, e_fcnic, e_mcnic, e_class, e_sec, e_prev_school, e_prev_class, e_fprof, e_phone, float(e_fee), float(e_arrears), e_adm_date.strftime("%Y-%m-%d"), e_blood_val, e_bform, e_g_type, e_dob.strftime("%Y-%m-%d"), e_fname, e_address, edit_reg))
 
+                            # 🟢 اگر اب یوزر نیم دیا گیا ہے تو اپڈیٹ یا نیا اکاؤنٹ بنا دیں
                             if e_username.strip():
                                 cursor.execute("SELECT id FROM users WHERE username=?", (e_username.strip(),))
                                 if cursor.fetchone():
