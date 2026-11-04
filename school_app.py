@@ -297,42 +297,6 @@ def login_system():
             login_btn = st.form_submit_button(tr("لاگ ان (Login)", "Login"), type="primary", use_container_width=True)
             
             if login_btn:
-                # مین ایڈمن اکاؤنٹ چیک
-                if username == "admin" and password == settings_data.get("password", "1234"):
-                    st.session_state.logged_in = True
-                    st.session_state.current_user = "Admin"
-                    st.session_state.current_role = "Admin"
-                    st.session_state.ref_id = "N/A"
-                    st.rerun()
-                else:
-                    # دیگر یوزرز (اساتذہ، والدین، آپریٹرز) کی چیکنگ
-                    cursor.execute("SELECT role, ref_id FROM users WHERE username=? AND password=?", (username, password))
-                    user_data = cursor.fetchone()
-                    
-                    if user_data:
-                        st.session_state.logged_in = True
-                        st.session_state.current_user = username
-                        st.session_state.current_role = user_data[0]
-                        st.session_state.ref_id = user_data[1]
-                        st.rerun()
-                    else:
-                        st.error(tr("❌ غلط یوزر نیم یا پاسورڈ۔ براہ کرم دوبارہ کوشش کریں۔", "❌ Incorrect username or password. Please try again."))
-
-# اگر یوزر لاگ ان نہیں ہے تو سسٹم یہیں رک جائے گا (اس سے آگے کا کوڈ رن نہیں ہوگا)
-if not st.session_state.logged_in:
- login_system()
-st.stop()
-# 🟢 ایکٹو سیشن معلوم کرنے کا فنکشن (یہاں رکھنے سے NameError کبھی نہیں آئے گا)
-def get_active_session():
-    try:
-        local_conn = get_db_connection()
-        local_cursor = local_conn.cursor()
-        local_cursor.execute("SELECT session_name FROM academic_sessions WHERE status='ACTIVE'")
-        row = local_cursor.fetchone()
-        return row[0] if row else "2026-27"
-    except:
-        return "2026-27"
-if login_btn:
                 # 🟢 کریش پروف ایڈمن پاسورڈ چیک تاکہ NameError نہ آئے
                 try:
                     admin_password = settings_data.get("password", "1234")
