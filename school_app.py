@@ -2714,8 +2714,7 @@ elif core_choice == "Attendance":
             try:
                 cursor.execute("ALTER TABLE leave_requests ADD COLUMN admin_remarks TEXT")
             except: pass
-            conn.commit()
-            
+            conn.commit() 
             # ڈیٹا بیس سے درخواستیں لانا
             # 🟢 کریش پروف چھٹی کی درخواستوں کا سسٹم (Crash-proof Leave Requests)
         try:
