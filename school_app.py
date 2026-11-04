@@ -895,7 +895,7 @@ elif sub_choice in ["سرٹیفکیٹس اور لیٹر", "Certificates"]:
 elif c_type == "Character Certificate":
                     content += " The student bears a good moral character and conduct."
             else:
-                    content += " All outstanding fees have been cleared by the student up to date."
+                content += " All outstanding fees have been cleared by the student up to date."
                 
                 html_cert = f"""
                 <div style="border: 10px solid #1a4f8b; padding: 40px; margin: auto; max-width: 800px; text-align: center; position: relative; background: #fdfbf7;">
