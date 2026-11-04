@@ -820,7 +820,7 @@ elif sub_choice in ["ریکارڈ ایڈٹ کریں", "Edit Record"]:
                             st.error(f"🛑 Error: {db_err}")
             else:
                 st.warning(tr("اس رجسٹریشن نمبر کا کوئی ریکارڈ نہیں ملا۔", "No record found for this Registration No."))
-                elif sub_choice in ["تلاش (Search)", "Search"]:
+elif sub_choice in ["تلاش (Search)", "Search"]:
         st.markdown(f"### 🔍 {tr('طلباء کو تلاش کریں', 'Search Students')}")
         c_s1, c_s2 = st.columns(2)
         search_by = c_s1.selectbox(tr("تلاش کا طریقہ", "Search By"), [tr("نام / فون نمبر", "Name / Phone"), tr("کلاس", "Class")])
