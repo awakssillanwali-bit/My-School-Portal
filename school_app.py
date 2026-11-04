@@ -252,27 +252,11 @@ def init_db():
     cursor = conn.cursor()
 
 # ================= 5. سکول کی سیٹنگز اور لوگو (School Settings & Logo) =================
-try:
-    # 🟢 کنکشن کو یقینی بنائیں تاکہ ڈیٹا بیس کا کوئی مسئلہ نہ آئے
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM settings")
-    
-    settings_data = {}
-    for row in cursor.fetchall():
-        key = row[0]
-        # 🟢 محفوظ طریقہ: اگر تیسرا کالم (BLOB) موجود ہے تو وہ لے، ورنہ دوسرا کالم لے
-        if len(row) > 2 and row[2] is not None:
-            settings_data[key] = row[2]
-        else:
-            settings_data[key] = row[1]
+cursor.execute("SELECT * FROM settings")
+settings_data = {row[0]: row[1] if row[1] is not None else row[2] for row in cursor.fetchall()}
 
-except Exception as e:
-    # اگر کوئی ایرر آئے گا تو اب یہ چھپنے کے بجائے کنسول میں نظر آ جائے گا لیکن ایپ کریش نہیں ہوگی
-    settings_data = {}
-
-school_name = settings_data.get("school_name", "Dar-ul-Khadija School System")
-school_address = settings_data.get("school_address", "Aslamabad Colony, Sillanwali, Sargodha")
+school_name = settings_data.get("school_name", "Dar Ul Khadija School System")
+school_address = settings_data.get("school_address", "Sillanwali, Sargodha, Punjab")
 school_phone = settings_data.get("school_phone", "0300-0000000")
 school_email = settings_data.get("school_email", "info@school.com")
 school_reg = settings_data.get("school_reg", "Reg-12345")
@@ -284,7 +268,7 @@ today_date = datetime.date.today().strftime("%Y-%m-%d")
 # لوگو (Logo) لوڈ کرنا
 logo_data = settings_data.get("school_logo")
 logo_src_b64 = ""
-if logo_data and isinstance(logo_data, bytes):
+if logo_data:
     logo_base64 = base64.b64encode(logo_data).decode()
     logo_src_b64 = f"data:image/jpeg;base64,{logo_base64}"
 else:
@@ -299,8 +283,7 @@ if 'current_role' not in st.session_state:
     st.session_state.current_role = ""
 if 'ref_id' not in st.session_state:
     st.session_state.ref_id = ""
-    
-# ================= 7. مین مینو اور نیویگیشن (Sidebar & Navigation) =================
+
 def login_system():
     # لاگ ان پیج کا ڈیزائن
     st.markdown(f"""
@@ -328,36 +311,24 @@ def login_system():
                     st.session_state.ref_id = "N/A"
                     st.rerun()
                 else:
-                    # 🟢 ایرر سے بچنے کے لیے فنکشن کے اندر لوکل کرسر (Local Cursor) کا استعمال
-                    try:
-                        local_conn = get_db_connection()
-                        local_cursor = local_conn.cursor()
-                        local_cursor.execute("SELECT role, ref_id FROM users WHERE username=? AND password=?", (username, password))
-                        user_data = local_cursor.fetchone()
-                        
-                        if user_data:
-                            st.session_state.logged_in = True
-                            st.session_state.current_user = username
-                            st.session_state.current_role = user_data[0]
-                            st.session_state.ref_id = user_data[1]
-                            st.rerun()
-                        else:
-                            st.error(tr("❌ غلط یوزر نیم یا پاسورڈ۔ براہ کرم دوبارہ کوشش کریں۔", "❌ Incorrect username or password. Please try again."))
-                    except Exception as e:
-                        st.error(f"Database Error: {e}")
-def get_active_session():
-    try:
-        local_conn = get_db_connection()
-        local_cursor = local_conn.cursor()
-        local_cursor.execute("SELECT session_name FROM academic_sessions WHERE status='ACTIVE'")
-        row = local_cursor.fetchone()
-        return row[0] if row else "2026-27"
-    except:
-        return "2026-27"
+                    # دیگر یوزرز (اساتذہ، والدین، آپریٹرز) کی چیکنگ
+                    cursor.execute("SELECT role, ref_id FROM users WHERE username=? AND password=?", (username, password))
+                    user_data = cursor.fetchone()
+                    
+                    if user_data:
+                        st.session_state.logged_in = True
+                        st.session_state.current_user = username
+                        st.session_state.current_role = user_data[0]
+                        st.session_state.ref_id = user_data[1]
+                        st.rerun()
+                    else:
+                        st.error(tr("❌ غلط یوزر نیم یا پاسورڈ۔ براہ کرم دوبارہ کوشش کریں۔", "❌ Incorrect username or password. Please try again."))
+
+# اگر یوزر لاگ ان نہیں ہے تو سسٹم یہیں رک جائے گا (اس سے آگے کا کوڈ رن نہیں ہوگا)
 if not st.session_state.logged_in:
     login_system()
     st.stop()
-active_session = get_active_session()
+
     # ================= 7. مین مینو اور نیویگیشن (Sidebar & Navigation) =================
 logo_base64_html = f'<img src="{logo_src_b64}" style="max-width: 80px; max-height: 80px; border-radius: 50%; border: 2px solid #1a4f8b; background: white; padding: 3px;">' if logo_src_b64 else '<div style="font-size:40px;">🏫</div>'
 
@@ -512,6 +483,7 @@ try:
         classes_list = ["Playgroup", "Nursery", "Prep", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th"]
 except:
     classes_list = ["Playgroup", "Nursery", "Prep", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th"]
+    
     # ================= 9. ڈیش بورڈ (Dashboard) =================
 if core_choice in ["ڈیش بورڈ", "Dashboard"]:
     if st.session_state.current_role not in ["Admin", "Operator", "Teacher"]:
@@ -646,6 +618,7 @@ if core_choice in ["ڈیش بورڈ", "Dashboard"]:
             c3.markdown(f"<div style='background:linear-gradient(135deg, #d69e2e, #ecc94b); color:white; padding:20px; border-radius:15px; text-align:center;'><h3>📋 {tr('آج کی حاضری', 'Today Attendance')}</h3><h1>{att_percent}%</h1></div>", unsafe_allow_html=True)
         except:
             c3.markdown(f"<div style='background:linear-gradient(135deg, #d69e2e, #ecc94b); color:white; padding:20px; border-radius:15px; text-align:center;'><h3>📋 {tr('آج کی حاضری', 'Today Attendance')}</h3><h1>0%</h1></div>", unsafe_allow_html=True)
+            
             # ================= 10. طلباء کا ریکارڈ (Students Management) =================
 elif core_choice in ["سٹوڈنٹ مینجمنٹ", "Students Mgt"]:
     st.markdown(f"<h2 class='no-print'>👨‍🎓 {tr('طلباء کا ریکارڈ (Students Mgt)', 'Students Management')} - {sub_choice}</h2>", unsafe_allow_html=True)
