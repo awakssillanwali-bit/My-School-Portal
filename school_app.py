@@ -289,9 +289,7 @@ if 'ref_id' not in st.session_state:
 if not st.session_state.logged_in:
     login_system()
     st.stop()
-
 active_session = get_active_session()
-
 # ================= 7. مین مینو اور نیویگیشن (Sidebar & Navigation) =================
 def login_system():
     # لاگ ان پیج کا ڈیزائن
