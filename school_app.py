@@ -320,7 +320,7 @@ def login_system():
 
 # اگر یوزر لاگ ان نہیں ہے تو سسٹم یہیں رک جائے گا (اس سے آگے کا کوڈ رن نہیں ہوگا)
 if not st.session_state.logged_in:
-login_system()
+ login_system()
     st.stop()
 # 🟢 ایکٹو سیشن معلوم کرنے کا فنکشن (یہاں رکھنے سے NameError کبھی نہیں آئے گا)
 def get_active_session():
