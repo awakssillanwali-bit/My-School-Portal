@@ -709,7 +709,7 @@ elif core_choice in ["سٹوڈنٹ مینجمنٹ", "Students Mgt"]:
                             
                     except Exception as e:
                         st.error(f"⚠️ ایک نیا مسئلہ پیش آیا: {e}")
-                        elif sub_choice in ["ریکارڈ ایڈٹ کریں", "Edit Record"]:
+elif sub_choice in ["ریکارڈ ایڈٹ کریں", "Edit Record"]:
         st.markdown(f"### ✏️ {tr('طالب علم کا ریکارڈ ایڈٹ کریں', 'Edit Student Record')}")
         edit_reg = st.text_input(tr("رجسٹریشن نمبر لکھیں (مثلاً: 1001)", "Enter Registration No to Edit"))
         
