@@ -1419,13 +1419,18 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
         </div>"""
 
     if sub_choice == "New Staff":
-        try: cursor.execute("ALTER TABLE staff ADD COLUMN assigned_class TEXT")
+        # 🟢 سٹاف کے ڈیٹا بیس کی خامیوں کا خودکار علاج (آٹو فکسر)
+        for col in ['name_en', 'fname_en', 'address_en', 'gender', 'g_type', 'fh_cnic', 'education', 'assigned_class', 'assigned_sec']:
+            try: 
+                cursor.execute(f"ALTER TABLE staff ADD COLUMN {col} TEXT DEFAULT ''")
+                conn.commit()
+            except: pass
+            
+        try: cursor.execute("ALTER TABLE staff ADD COLUMN photo BLOB"); conn.commit()
         except: pass
-        try: cursor.execute("ALTER TABLE staff ADD COLUMN assigned_sec TEXT")
-        except: pass
-        conn.commit()
 
-        with st.form("staff_form", clear_on_submit=True):
+        # فارم غائب نہ ہو اس لیے clear_on_submit=False کر دیا گیا ہے
+        with st.form("staff_form", clear_on_submit=False):
             staff_df_check = pd.read_sql("SELECT staff_id FROM staff", conn)
             auto_staff_id = "101" if staff_df_check.empty else str(max([int(x) for x in staff_df_check['staff_id'] if str(x).isdigit()]) + 1)
             st.markdown(f"### {tr('سٹاف ID:', 'Staff ID:')} `{auto_staff_id}`")
@@ -1476,18 +1481,17 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
             a_sec = c14.selectbox(tr("سیکشن الاٹ کریں", "Assign Section"), ["None", "A", "B", "C", "D", "Model"])
             
             st.markdown(f"#### 5. {tr('سافٹ ویئر لاگ ان (اکاؤنٹ)', 'Software Login Details')}")
+            st.info(tr("اگر آپ ابھی اکاؤنٹ نہیں بنانا چاہتے تو ان خانوں کو خالی چھوڑ دیں، آپ بعد میں 'ایڈٹ ریکارڈ' سے بھی اکاؤنٹ بنا سکتے ہیں۔", "Leave empty if you don't want to create an account now. You can create it later from Edit Record."))
             c_log1, c_log2, c_log3 = st.columns(3)
-            staff_username = c_log1.text_input(tr("یوزر نیم (مثلاً: ali_teacher) *", "Username *"))
-            staff_password = c_log2.text_input(tr("پاسورڈ *", "Password *"), type="password")
+            staff_username = c_log1.text_input(tr("یوزر نیم (اختیاری)", "Username (Optional)"))
+            staff_password = c_log2.text_input(tr("پاسورڈ (اختیاری)", "Password (Optional)"))
             staff_role = c_log3.selectbox(tr("سسٹم رول (Role)", "System Role"), ["Teacher", "Operator", "Admin"])
 
-            submit_btn = st.form_submit_button(tr("سٹاف اور اکاؤنٹ محفوظ کریں", "Save Staff & Account"))
+            submit_btn = st.form_submit_button(tr("سٹاف کا ڈیٹا محفوظ کریں", "Save Staff Data"), type="primary")
             
             if submit_btn:
-                if not staff_name:
-                    st.error(tr("سٹاف کا نام لکھنا لازمی ہے!", "Staff name is required!"))
-                elif staff_username.strip() == "" or staff_password.strip() == "":
-                    st.error(tr("سافٹ ویئر میں لاگ ان کے لیے یوزر نیم اور پاسورڈ لازمی ہیں!", "Username and password are required for software login!"))
+                if not staff_name.strip():
+                    st.error(tr("⚠️ سٹاف کا نام لکھنا لازمی ہے!", "⚠️ Staff name is required!"))
                 else:
                     if desig_sel == tr("دیگر (خود لکھیں)", "Other (Custom)"):
                         designation = custom_desig if custom_desig.strip() != "" else "Staff"
@@ -1506,14 +1510,26 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                             edu_list.append(f"{final_deg} ({final_det})" if final_det else final_deg)
 
                     education_str = " | ".join(edu_list)
-                    photo_data = staff_photo.read() if staff_photo else None
+                    
+                    try:
+                        photo_data = staff_photo.read() if staff_photo else None
+                    except:
+                        photo_data = None
+                        
                     n_en = staff_name if st.session_state.ui_lang == "English" else ""
                     fn_en = father_husband_name if st.session_state.ui_lang == "English" else ""
                     ad_en = address if st.session_state.ui_lang == "English" else ""
                     
                     try:
-                        cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES (?, ?, ?, ?)", 
-                                       (staff_username.strip(), staff_password.strip(), staff_role, auto_staff_id))
+                        if staff_username.strip():
+                            cursor.execute("SELECT id FROM users WHERE username=?", (staff_username.strip(),))
+                            if cursor.fetchone():
+                                st.error(tr("⚠️ یہ یوزر نیم پہلے سے موجود ہے۔ برائے مہربانی لاگ ان کے لیے کوئی مختلف نام منتخب کریں یا اسے خالی چھوڑ دیں۔", "Username already exists. Please choose a different one or leave empty."))
+                                st.stop()
+                            else:
+                                pass_to_save = staff_password.strip() if staff_password.strip() else "1234"
+                                cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES (?, ?, ?, ?)", 
+                                               (staff_username.strip(), pass_to_save, staff_role, auto_staff_id))
                         
                         cursor.execute("""
                             INSERT INTO staff 
@@ -1522,9 +1538,16 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                         """, (auto_staff_id, staff_name, father_husband_name, cnic, staff_dob.strftime("%Y-%m-%d"), designation, phone, address, joining_date.strftime("%Y-%m-%d"), salary, education_str, fh_cnic, photo_data, g_type, n_en, fn_en, ad_en, staff_gender, a_cls, a_sec))
                         
                         conn.commit()
-                        st.success(tr("✅ سٹاف کا ریکارڈ اور لاگ ان اکاؤنٹ کامیابی سے محفوظ ہو گیا!", "Staff record and login account saved successfully!"))
-                    except sqlite3.IntegrityError:
-                        st.error(tr("⚠️ یہ یوزر نیم پہلے سے موجود ہے۔ برائے مہربانی لاگ ان کے لیے کوئی مختلف نام منتخب کریں۔", "Username already exists. Please choose a different one."))
+                        st.balloons()
+                        
+                        if staff_username.strip():
+                            st.success(tr("✅ سٹاف کا ریکارڈ اور لاگ ان اکاؤنٹ کامیابی سے محفوظ ہو گیا!", "Staff record and login account saved successfully!"))
+                        else:
+                            st.success(tr("✅ سٹاف کا ریکارڈ محفوظ ہو گیا! (کوئی اکاؤنٹ نہیں بنایا گیا)", "Staff record saved! (No account created)"))
+                            
+                        import time
+                        time.sleep(1.5)
+                        st.rerun()
                     except Exception as e: 
                         st.error(f"Error saving staff: {e}")
 
