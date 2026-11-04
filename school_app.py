@@ -1190,7 +1190,7 @@ elif sub_choice in ["ریکارڈ / ایڈٹ", "Edit/Search Staff"]:
         else:
             st.info(tr("کوئی سٹاف موجود نہیں ہے۔", "No staff record available."))
 
-    elif sub_choice in ["آئی ڈی کارڈز پرنٹ", "Print ID Cards"]:
+elif sub_choice in ["آئی ڈی کارڈز پرنٹ", "Print ID Cards"]:
         st.markdown(f"### 🪪 {tr('سٹاف کے آئی ڈی کارڈز پرنٹ کریں', 'Print Staff ID Cards')}")
         staff_df = pd.read_sql("SELECT * FROM staff", conn)
         if not staff_df.empty:
@@ -1281,7 +1281,7 @@ elif core_choice in ["حاضری", "Attendance"]:
         else:
             st.warning(tr("اس کیٹگری میں کوئی ریکارڈ نہیں ملا۔", "No records found in this category."))
 
-    elif sub_choice in ["آج کی رپورٹ", "Today's Report"]:
+elif sub_choice in ["آج کی رپورٹ", "Today's Report"]:
         r_type = st.radio(tr("رپورٹ کی قسم", "Report Type"), [tr("طلباء (Students)", "Students"), tr("سٹاف (Staff)", "Staff")], horizontal=True)
         r_type_en = "Student" if r_type in ["طلباء (Students)", "Students"] else "Staff"
         r_date = st.date_input(tr("تاریخ منتخب کریں", "Select Date"), max_value=datetime.date.today())
@@ -1302,7 +1302,7 @@ elif core_choice in ["حاضری", "Attendance"]:
         else:
             st.info(tr("اس تاریخ کی کوئی حاضری نہیں لگی۔", "No attendance found for this date."))
 
-    elif sub_choice in ["ماہانہ رپورٹ", "Monthly Report"]:
+elif sub_choice in ["ماہانہ رپورٹ", "Monthly Report"]:
         st.markdown(f"### 📅 {tr('ماہانہ حاضری رپورٹ', 'Monthly Attendance Report')}")
         m_type = st.radio(tr("رپورٹ کی قسم", "Report Type"), [tr("طلباء (Students)", "Students"), tr("سٹاف (Staff)", "Staff")], horizontal=True, key="m_type")
         m_type_en = "Student" if m_type in ["طلباء (Students)", "Students"] else "Staff"
@@ -1413,7 +1413,7 @@ elif core_choice in ["فیس اور تنخواہ", "Fee & Salary"]:
             else:
                 st.warning(tr("اس رجسٹریشن نمبر کا کوئی طالب علم نہیں ملا۔", "No student found with this Reg No."))
 
-    elif sub_choice in ["فیس ڈیفالٹرز", "Fee Defaulters"]:
+elif sub_choice in ["فیس ڈیفالٹرز", "Fee Defaulters"]:
         st.markdown(f"### 🚨 {tr('فیس ڈیفالٹرز کی فہرست', 'Fee Defaulters List')}")
         try:
             df_def = pd.read_sql(f"SELECT s.reg_id, s.name, s.name_en, s.class, s.phone, s.arrears FROM students s WHERE s.arrears > 0 AND s.status='Active'", conn)
@@ -1427,7 +1427,7 @@ elif core_choice in ["فیس اور تنخواہ", "Fee & Salary"]:
         except Exception as e:
             st.error(f"Error: {e}")
 
-    elif sub_choice in ["تنخواہ ادا کریں", "Pay Salary"]:
+elif sub_choice in ["تنخواہ ادا کریں", "Pay Salary"]:
         st.markdown(f"### 💸 {tr('سٹاف کی تنخواہ ادا کریں', 'Pay Staff Salary')}")
         
         staff_df = pd.read_sql("SELECT staff_id, name, name_en, designation, salary FROM staff", conn)
@@ -1461,7 +1461,7 @@ elif core_choice in ["فیس اور تنخواہ", "Fee & Salary"]:
         else:
             st.warning(tr("کوئی سٹاف موجود نہیں ہے۔", "No staff available."))
 
-    elif sub_choice in ["سلپ پرنٹ کریں", "Print Slips"]:
+elif sub_choice in ["سلپ پرنٹ کریں", "Print Slips"]:
         st.markdown(f"### 🖨️ {tr('پرانی رسید پرنٹ کریں', 'Print Previous Slip')}")
         s_type = st.radio(tr("رسید کی قسم", "Slip Type"), ["Fee Receipt", "Salary Slip"], horizontal=True)
         s_no = st.text_input(tr("رجسٹریشن نمبر / سٹاف ID لکھیں", "Enter Reg No / Staff ID"))
@@ -1508,7 +1508,7 @@ elif core_choice in ["اکاؤنٹس (لیجر)", "Accounts"]:
                 except Exception as e:
                     st.error(f"Error: {e}")
 
-    elif sub_choice in ["کیش بک / لیجر", "Cash Book / Ledger"]:
+elif sub_choice in ["کیش بک / لیجر", "Cash Book / Ledger"]:
         st.markdown(f"### 📘 {tr('کیش بک اور لیجر رپورٹ', 'Cash Book / Ledger Report')}")
         
         c_from, c_to = st.columns(2)
@@ -1577,7 +1577,7 @@ elif core_choice in ["اکاؤنٹس (لیجر)", "Accounts"]:
             else:
                 st.info(tr("اس دورانیے کی کوئی ٹرانزیکشن نہیں ملی۔", "No transactions found in this date range."))
 
-    elif sub_choice in ["اکاؤنٹ ہیڈز", "Account Heads"]:
+elif sub_choice in ["اکاؤنٹ ہیڈز", "Account Heads"]:
         st.markdown(f"### 🗂️ {tr('اکاؤنٹ ہیڈز بنائیں', 'Manage Account Heads')}")
         
         with st.form("head_form", clear_on_submit=True):
@@ -1640,7 +1640,7 @@ elif core_choice in ["تعلیمی ریکارڈ", "Academics"]:
         df_tt = pd.read_sql(f"SELECT day as Day, period as Period, subject as Subject, teacher_id as 'Teacher ID' FROM timetable WHERE class='{v_class}' ORDER BY day, period", conn)
         if not df_tt.empty: st.dataframe(df_tt, use_container_width=True)
 
-    elif sub_choice in ["لیسن پلان", "Lesson Plan"]:
+elif sub_choice in ["لیسن پلان", "Lesson Plan"]:
         st.markdown(f"### 📝 {tr('پرائمری لیسن پلاننگ', 'Primary Lesson Planning')}")
         
         tab_view, tab_add = st.tabs([tr("پلان دیکھیں (فلٹرز)", "View Plans (Filters)"), tr("نیا پلان بنائیں", "Create New Plan")])
@@ -1684,7 +1684,7 @@ elif core_choice in ["تعلیمی ریکارڈ", "Academics"]:
                 if not df_lp.empty: st.dataframe(df_lp, use_container_width=True)
                 else: st.warning(tr("کوئی ریکارڈ نہیں ملا۔", "No records found."))
 
-    elif sub_choice in ["امتحان کی سیٹنگ", "Exam Setup"]:
+elif sub_choice in ["امتحان کی سیٹنگ", "Exam Setup"]:
         st.markdown(f"### 📝 {tr('امتحانی پرچہ جنریٹر', 'Exam Paper Generator')}")
         st.info(tr("پرائمری سکول کے معیار اور A4 سائز کے مطابق پیپر تیار کیا جائے گا۔", "Paper will be generated according to Primary standard and fixed A4 size."))
         
@@ -1767,7 +1767,7 @@ elif core_choice in ["تعلیمی ریکارڈ", "Academics"]:
                 # پرنٹ کے بٹن میں A4 سائز کی سختی سے پابندی
                 print_button_js(html_paper, tr("پیپر پرنٹ کریں (A4 Size)", "Print Paper (A4 Size)"))
 
-    elif sub_choice in ["نمبرز کا اندراج", "Marks Entry"]:
+elif sub_choice in ["نمبرز کا اندراج", "Marks Entry"]:
         st.markdown(f"### ✍️ {tr('امتحانی نمبرز کا اندراج', 'Exam Marks Entry')}")
         c1, c2, c3 = st.columns(3)
         m_exam = c1.selectbox(tr("امتحان کا نام", "Exam Name"), ["First Term", "Mid Term", "Final Term", "Monthly Test"])
@@ -1793,7 +1793,7 @@ elif core_choice in ["تعلیمی ریکارڈ", "Academics"]:
                     except Exception as e: st.error(f"Error: {e}")
         else: st.warning(tr("اس کلاس میں کوئی طالب علم موجود نہیں۔", "No students found in this class."))
 
-    elif sub_choice in ["رزلٹ کارڈز", "Result Cards"]:
+elif sub_choice in ["رزلٹ کارڈز", "Result Cards"]:
         st.markdown(f"### 🏆 {tr('رزلٹ کارڈ پرنٹ کریں', 'Print Result Cards')}")
         r_exam = st.selectbox(tr("امتحان چنیں", "Select Exam"), ["First Term", "Mid Term", "Final Term", "Monthly Test"])
         r_reg = st.text_input(tr("طالب علم کا رجسٹریشن نمبر", "Student Reg No"))
@@ -1875,7 +1875,7 @@ elif core_choice in ["لائبریری", "Library"]:
         if not df_books.empty: st.dataframe(df_books, use_container_width=True)
         else: st.info(tr("لائبریری میں کوئی کتاب موجود نہیں۔", "No books in library."))
 
-    elif sub_choice in ["کتاب جاری / واپس کریں", "Issue / Return Books"]:
+elif sub_choice in ["کتاب جاری / واپس کریں", "Issue / Return Books"]:
         st.markdown(f"### 🔄 {tr('کتاب جاری یا واپس کریں', 'Issue / Return Book')}")
         action = st.radio(tr("عمل منتخب کریں", "Select Action"), [tr("کتاب جاری کریں (Issue)", "Issue Book"), tr("کتاب واپس لیں (Return)", "Return Book")], horizontal=True)
         
@@ -1911,7 +1911,7 @@ elif core_choice in ["لائبریری", "Library"]:
                         st.success(tr("✅ کتاب کامیابی سے واپس لے لی گئی!", "Book returned successfully!"))
                     except Exception as e: st.error(f"Error: {e}")
 
-    elif sub_choice in ["لائبریری رپورٹس", "Library Reports"]:
+elif sub_choice in ["لائبریری رپورٹس", "Library Reports"]:
         st.markdown(f"### 📊 {tr('اجراء شدہ کتابوں کی رپورٹ', 'Issued Books Report')}")
         df_issued = pd.read_sql("SELECT * FROM book_issue WHERE status='Issued'", conn)
         if not df_issued.empty: st.dataframe(df_issued, use_container_width=True)
@@ -1937,7 +1937,7 @@ elif core_choice in ["انوینٹری (سٹاک)", "Inventory"]:
                     except Exception as e: st.error(f"Error: {e}")
                 else: st.error(tr("⚠️ آئٹم کا نام لکھنا لازمی ہے۔", "Item name is required."))
                 
-    elif sub_choice in ["سٹاک کا ریکارڈ", "Stock Record"]:
+elif sub_choice in ["سٹاک کا ریکارڈ", "Stock Record"]:
         st.markdown(f"### 📋 {tr('موجودہ انوینٹری ریکارڈ', 'Current Inventory Record')}")
         df_inv = pd.read_sql("SELECT * FROM inventory", conn)
         if not df_inv.empty: st.dataframe(df_inv, use_container_width=True)
@@ -1968,7 +1968,7 @@ elif core_choice in ["گیٹ سیکیورٹی", "Gate Security"]:
                     except Exception as e: st.error(f"Error: {e}")
                 else: st.error(tr("⚠️ وزیٹر کا نام لکھنا لازمی ہے۔", "Visitor name is required."))
                 
-    elif sub_choice in ["موجودہ وزیٹرز (آؤٹ)", "Active Visitors (Out)"]:
+elif sub_choice in ["موجودہ وزیٹرز (آؤٹ)", "Active Visitors (Out)"]:
         st.markdown(f"### 🚪 {tr('سکول کے اندر موجود وزیٹرز', 'Visitors Currently Inside')}")
         df_vis = pd.read_sql("SELECT id, date, time_in, name, phone, purpose, to_meet FROM visitors WHERE status='Inside'", conn)
         if not df_vis.empty:
@@ -1983,7 +1983,7 @@ elif core_choice in ["گیٹ سیکیورٹی", "Gate Security"]:
                 st.rerun()
         else: st.success(tr("اس وقت سکول کے اندر کوئی وزیٹر موجود نہیں۔", "No visitors currently inside."))
 
-    elif sub_choice in ["وزیٹر ہسٹری", "Visitor History"]:
+elif sub_choice in ["وزیٹر ہسٹری", "Visitor History"]:
         st.markdown(f"### 📜 {tr('تمام وزیٹرز کی ہسٹری', 'Complete Visitor History')}")
         df_hist = pd.read_sql("SELECT * FROM visitors ORDER BY date DESC, time_in DESC", conn)
         if not df_hist.empty: st.dataframe(df_hist, use_container_width=True)
@@ -2019,7 +2019,7 @@ elif core_choice in ["ٹرانسپورٹ", "Transport"]:
         if not df_trans.empty: st.dataframe(df_trans, use_container_width=True)
         else: st.info(tr("کوئی گاڑی درج نہیں ہے۔", "No vehicles registered."))
 
-    elif sub_choice in ["طلباء کی بکنگ", "Student Booking"]:
+elif sub_choice in ["طلباء کی بکنگ", "Student Booking"]:
         st.markdown(f"### 🎫 {tr('طلباء کے لیے ٹرانسپورٹ بکنگ', 'Student Transport Booking')}")
         with st.form("t_book_form"):
             c1, c2 = st.columns(2)
@@ -2040,7 +2040,7 @@ elif core_choice in ["ٹرانسپورٹ", "Transport"]:
                     except Exception as e: st.error(f"Error: {e}")
                 else: st.error(tr("⚠️ تمام خانے پر کرنا لازمی ہیں۔", "All fields are required."))
 
-    elif sub_choice in ["لائیو جی پی ایس (لائیو میپ)", "Live GPS Map"]:
+elif sub_choice in ["لائیو جی پی ایس (لائیو میپ)", "Live GPS Map"]:
         st.markdown(f"### 🛰️ {tr('لائیو جی پی ایس ٹریکنگ سسٹم', 'Live GPS Tracking System')}")
         st.info(tr("یہاں آپ اپنی سکول وینز کی لائیو لوکیشن اور سپیڈ دیکھ سکتے ہیں۔", "Here you can track live location and speed of school vans."))
         
