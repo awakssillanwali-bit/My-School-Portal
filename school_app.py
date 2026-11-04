@@ -253,13 +253,26 @@ def init_db():
 
 # ================= 5. سکول کی سیٹنگز اور لوگو (School Settings & Logo) =================
 try:
+    # 🟢 کنکشن کو یقینی بنائیں تاکہ ڈیٹا بیس کا کوئی مسئلہ نہ آئے
+    conn = get_db_connection()
+    cursor = conn.cursor()
     cursor.execute("SELECT * FROM settings")
-    settings_data = {row[0]: row[1] if row[1] is not None else row[2] for row in cursor.fetchall()}
+    
+    settings_data = {}
+    for row in cursor.fetchall():
+        key = row[0]
+        # 🟢 محفوظ طریقہ: اگر تیسرا کالم (BLOB) موجود ہے تو وہ لے، ورنہ دوسرا کالم لے
+        if len(row) > 2 and row[2] is not None:
+            settings_data[key] = row[2]
+        else:
+            settings_data[key] = row[1]
+
 except Exception as e:
+    # اگر کوئی ایرر آئے گا تو اب یہ چھپنے کے بجائے کنسول میں نظر آ جائے گا لیکن ایپ کریش نہیں ہوگی
     settings_data = {}
 
-school_name = settings_data.get("school_name", "Dar Ul Khadija School System")
-school_address = settings_data.get("school_address", "Sillanwali, Sargodha, Punjab")
+school_name = settings_data.get("school_name", "Dar-ul-Khadija School System")
+school_address = settings_data.get("school_address", "Aslamabad Colony, Sillanwali, Sargodha")
 school_phone = settings_data.get("school_phone", "0300-0000000")
 school_email = settings_data.get("school_email", "info@school.com")
 school_reg = settings_data.get("school_reg", "Reg-12345")
@@ -267,10 +280,11 @@ school_website = settings_data.get("school_website", "www.school.com")
 school_whatsapp = settings_data.get("school_whatsapp", "0300-0000000")
 school_facebook = settings_data.get("school_facebook", "facebook.com/school")
 today_date = datetime.date.today().strftime("%Y-%m-%d")
+
 # لوگو (Logo) لوڈ کرنا
 logo_data = settings_data.get("school_logo")
 logo_src_b64 = ""
-if logo_data:
+if logo_data and isinstance(logo_data, bytes):
     logo_base64 = base64.b64encode(logo_data).decode()
     logo_src_b64 = f"data:image/jpeg;base64,{logo_base64}"
 else:
