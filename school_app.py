@@ -846,8 +846,20 @@ elif core_choice == "Students Mgt":
         </table></div>"""
 
     if sub_choice == "New Admission":
-        # فارم غائب نہ ہو اس لیے clear_on_submit=True ہٹا دیا گیا ہے
-        with st.form("student_form"):
+        # 🟢 ڈیٹا بیس کی خامیوں کا خودکار علاج (آٹو فکسر)
+        for col in ['name_en', 'fname_en', 'address_en', 'gender', 'mname', 'fcnic', 'mcnic', 'g_type', 'f_prof', 'bform']:
+            try: 
+                cursor.execute(f"ALTER TABLE students ADD COLUMN {col} TEXT DEFAULT ''")
+                conn.commit()
+            except: pass
+            
+        try: cursor.execute("ALTER TABLE students ADD COLUMN photo BLOB"); conn.commit()
+        except: pass
+        try: cursor.execute("ALTER TABLE students ADD COLUMN status TEXT DEFAULT 'Active'"); conn.commit()
+        except: pass
+
+        # فارم غائب نہ ہو اس لیے clear_on_submit=False کر دیا گیا ہے
+        with st.form("student_form", clear_on_submit=False):
             stud_count = pd.read_sql("SELECT COUNT(*) FROM students", conn).iloc[0, 0]
             auto_reg_no = "1001" if stud_count == 0 else str(safe_int(pd.read_sql("SELECT MAX(CAST(reg_id AS INTEGER)) FROM students", conn).iloc[0, 0]) + 1)
             st.markdown(f"### {tr('رجسٹریشن نمبر', 'Reg No')}: `{auto_reg_no}`")
@@ -901,7 +913,7 @@ elif core_choice == "Students Mgt":
             
             if submit_btn:
                 if not name.strip():
-                    st.error(tr("⚠️ طالب علم کا نام لکھنا لازمی ہے۔", "⚠️ Student name is mandatory."))
+                    st.error(tr("⚠️ طالب علم کا نام لکھنا لازمی ہے، باقی خانے آپ خالی چھوڑ سکتے ہیں۔", "⚠️ Student name is mandatory, other fields can be empty."))
                 else:
                     try:
                         photo_data = student_photo.read() if student_photo else None
@@ -913,18 +925,18 @@ elif core_choice == "Students Mgt":
                     ad_en = address if st.session_state.ui_lang == "English" else ""
                     
                     try:
-                        # 🔴 آٹو جنریشن ختم، اب صرف تب اکاؤنٹ بنے گا جب یوزر نیم لکھا گیا ہو
+                        # اگر یوزر نیم دیا گیا ہو تبھی نیا اکاؤنٹ بنے گا
                         if guardian_username.strip():
                             cursor.execute("SELECT id FROM users WHERE username=?", (guardian_username.strip(),))
                             if cursor.fetchone():
                                 st.error(tr("⚠️ یہ یوزر نیم پہلے سے موجود ہے۔ برائے مہربانی کوئی مختلف نام استعمال کریں یا اسے خالی چھوڑ دیں۔", "Username already exists. Use a different one or leave empty."))
-                                st.stop() # اگر یوزر نیم موجود ہے تو یہیں رک جائے، ڈیٹا سیو نہ کرے
+                                st.stop()
                             else:
                                 pass_to_save = guardian_password.strip() if guardian_password.strip() else "1234"
                                 cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", 
                                                (guardian_username.strip(), pass_to_save, "Guardian"))
                         
-                        # 🟢 سٹوڈنٹ کا ڈیٹا ہر حال میں سیو ہوگا
+                        # 🟢 ڈیٹا ہر حال میں سیو ہو گا
                         cursor.execute("""
                             INSERT INTO students 
                             (reg_id, name, fname, dob, blood, class, section, bform, phone, address, prev_school, prev_class, medical, monthly_fee, adm_date, arrears, gender, mname, fcnic, mcnic, photo, g_type, f_prof, name_en, fname_en, address_en, status) 
@@ -932,29 +944,15 @@ elif core_choice == "Students Mgt":
                         """, (auto_reg_no, name, father_name, student_dob.strftime("%Y-%m-%d"), blood_group, student_class, student_section, b_form, phone, address, prev_school, prev_class, medical_info, fixed_fee, admission_date.strftime("%Y-%m-%d"), initial_arrears, gender, mname, fcnic, mcnic, photo_data, g_type, f_prof, n_en, fn_en, ad_en))
                         
                         conn.commit()
+                        st.balloons() # 🟢 کامیابی پر غبارے اڑیں گے
+                        
                         if guardian_username.strip():
-                            st.success(tr("✅ طالب علم کا داخلہ اور والدین کا اکاؤنٹ کامیابی سے محفوظ ہو گیا!", "Student and parent account saved successfully!"))
+                            st.success(tr(f"✅ طالب علم ({name}) کا داخلہ اور والدین کا اکاؤنٹ کامیابی سے محفوظ ہو گیا!", "Student and parent account saved successfully!"))
                         else:
-                            st.success(tr("✅ طالب علم کا داخلہ محفوظ ہو گیا! (کوئی اکاؤنٹ نہیں بنایا گیا)", "Student record saved! (No account created)"))
+                            st.success(tr(f"✅ طالب علم ({name}) کا داخلہ محفوظ ہو گیا! (کوئی اکاؤنٹ نہیں بنایا گیا)", "Student record saved! (No account created)"))
                         
-                        import time
-                        time.sleep(1.5)
-                        st.rerun()
+                        st.info("💡 اگلا نیا داخلہ کرنے کے لیے ایک بار پیج کو ریفریش (F5) کر لیں۔")
                         
-                    except sqlite3.OperationalError as e:
-                        error_msg = str(e)
-                        if "has no column named" in error_msg:
-                            missing_col = error_msg.split("named ")[-1].replace("'", "").replace('"', "").strip()
-                            st.error(f"⚠️ ڈیٹا بیس ایرر: آپ کے ٹیبل میں '{missing_col}' کا کالم موجود نہیں ہے۔")
-                            st.info("💡 آپ کا ڈیٹا ختم نہیں ہوا۔ سسٹم نے کالم خود بنا دیا ہے، بس ایک بار پھر 'محفوظ کریں' کا بٹن دبائیں!")
-                            try:
-                                cursor.execute(f"ALTER TABLE students ADD COLUMN {missing_col} TEXT DEFAULT ''")
-                                conn.commit()
-                            except Exception as inner_e:
-                                pass
-                        else:
-                            st.error(f"⚠️ ڈیٹا بیس کا مسئلہ: {error_msg}")
-                            
                     except Exception as e:
                         st.error(f"⚠️ ایک نیا مسئلہ پیش آیا: {e}")
 
