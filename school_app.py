@@ -1313,7 +1313,7 @@ elif sub_choice in ["ماہانہ رپورٹ", "Monthly Report"]:
         
         if st.button(tr("رپورٹ بنائیں", "Generate Report"), type="primary"):
             like_str = f"{m_year}-{m_month}-%"
-            df_mon = pd.read_sql(f"SELECT person_id, status FROM 
+        df_mon = pd.read_sql(f"SELECT person_id, status FROM 
             attendance WHERE date LIKE '{like_str}' AND type='{m_type_en}'", conn)
             
             if not df_mon.empty:
