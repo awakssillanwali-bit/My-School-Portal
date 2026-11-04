@@ -262,16 +262,33 @@ if 'ref_id' not in st.session_state:
     st.session_state.ref_id = ""
 
 def login_system():
-    # لاگ ان پیج کا ڈیزائن
+    # 🟢 کریش پروف ویری ایبلز تاکہ کوئی NameError نہ آئے
+    try:
+        safe_logo = logo_src_b64
+    except NameError:
+        safe_logo = "https://cdn-icons-png.flaticon.com/512/104/104655.png"
+        
+    try:
+        safe_name = school_name.upper()
+    except NameError:
+        safe_name = "DAR UL KHADIJA SCHOOL SYSTEM"
+        
+    try:
+        safe_address = school_address
+    except NameError:
+        safe_address = "Aslamabad Colony, Sillanwali, Sargodha"
+
+    # 🟢 لاگ ان پیج کا ڈیزائن (اس میں سے گول سرکل اور بارڈر ختم کر دیا گیا ہے)
     st.markdown(f"""
     <div style="text-align: center; margin-top: 50px; margin-bottom: 20px;">
-        <img src="{logo_src_b64}" style="width: 120px; height: 120px; object-fit: contain; border-radius: 50%; border: 4px solid #1a4f8b; padding: 5px; background: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-        <h1 style="color: #1a4f8b; margin-top: 15px; font-family: 'Arial', sans-serif;">{school_name.upper()}</h1>
-        <p style="color: #666; font-size: 16px; margin-top: -10px; font-weight: bold;">{school_address}</p>
+        <img src="{safe_logo}" style="width: 140px; height: 140px; object-fit: contain; padding: 5px; background: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+        <h1 style="color: #1a4f8b; margin-top: 15px; font-family: 'Arial', sans-serif;">{safe_name}</h1>
+        <p style="color: #666; font-size: 16px; margin-top: -10px; font-weight: bold;">{safe_address}</p>
     </div>
     """, unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 1.2, 1])
+    # ... (اس کے نیچے آپ کا لاگ ان فارم والا باقی کوڈ ویسے ہی رہے گا)
     with col2:
         st.markdown(f"<h3 style='text-align: center; color: #333; margin-bottom: 20px;'>🔐 {tr('سسٹم میں لاگ ان کریں', 'Login to System')}</h3>", unsafe_allow_html=True)
         with st.form("login_form"):
@@ -303,7 +320,7 @@ def login_system():
 
 # اگر یوزر لاگ ان نہیں ہے تو سسٹم یہیں رک جائے گا (اس سے آگے کا کوڈ رن نہیں ہوگا)
 if not st.session_state.logged_in:
-    login_system()
+login_system()
     st.stop()
 # 🟢 ایکٹو سیشن معلوم کرنے کا فنکشن (یہاں رکھنے سے NameError کبھی نہیں آئے گا)
 def get_active_session():
