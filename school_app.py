@@ -338,7 +338,7 @@ def login_system():
                             st.error(tr("❌ غلط یوزر نیم یا پاسورڈ۔ براہ کرم دوبارہ کوشش کریں۔", "❌ Incorrect username or password. Please try again."))
                     except Exception as e:
                         st.error(f"Database Error: {e}")
-active_session = get_active_session()
+    active_session = get_active_session()
 
     # ================= 6. مین مینو اور نیویگیشن (Sidebar & Navigation) =================
 try:
