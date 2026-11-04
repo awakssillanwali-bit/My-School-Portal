@@ -933,8 +933,8 @@ elif core_choice == "Students Mgt":
                                 st.stop()
                             else:
                                 pass_to_save = guardian_password.strip() if guardian_password.strip() else "1234"
-                                cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", 
-                                               (guardian_username.strip(), pass_to_save, "Guardian"))
+                                cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES (?, ?, ?, ?)", 
+                                               (guardian_username.strip(), pass_to_save, "Guardian", auto_reg_no))
                         
                         # 🟢 ڈیٹا ہر حال میں سیو ہو گا
                         cursor.execute("""
