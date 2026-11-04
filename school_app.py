@@ -332,7 +332,48 @@ def get_active_session():
         return row[0] if row else "2026-27"
     except:
         return "2026-27"
+if login_btn:
+                # 🟢 کریش پروف ایڈمن پاسورڈ چیک تاکہ NameError نہ آئے
+                try:
+                    admin_password = settings_data.get("password", "1234")
+                except NameError:
+                    admin_password = "1234" # ڈیفالٹ پاسورڈ
+                    try:
+                        # اگر settings_data نہ ملے تو ڈیٹا بیس سے ڈائریکٹ پاسورڈ نکال لے گا
+                        local_conn = get_db_connection()
+                        local_cursor = local_conn.cursor()
+                        local_cursor.execute("SELECT value FROM settings WHERE key='password'")
+                        row = local_cursor.fetchone()
+                        if row:
+                            admin_password = row[0]
+                    except:
+                        pass
 
+                # مین ایڈمن اکاؤنٹ چیک
+                if username == "admin" and password == admin_password:
+                    st.session_state.logged_in = True
+                    st.session_state.current_user = "Admin"
+                    st.session_state.current_role = "Admin"
+                    st.session_state.ref_id = "N/A"
+                    st.rerun()
+                else:
+                    # 🟢 یوزر (Teacher یا Parent) چیک کرنے والا محفوظ کوڈ
+                    try:
+                        local_conn = get_db_connection()
+                        local_cursor = local_conn.cursor()
+                        local_cursor.execute("SELECT role, ref_id FROM users WHERE username=? AND password=?", (username, password))
+                        user_data = local_cursor.fetchone()
+                        
+                        if user_data:
+                            st.session_state.logged_in = True
+                            st.session_state.current_user = username
+                            st.session_state.current_role = user_data[0]
+                            st.session_state.ref_id = user_data[1]
+                            st.rerun()
+                        else:
+                            st.error(tr("❌ غلط یوزر نیم یا پاسورڈ۔ براہ کرم دوبارہ کوشش کریں۔", "❌ Incorrect username or password. Please try again."))
+                    except Exception as e:
+                        st.error(f"Database Error: {e}")
 active_session = get_active_session()
 
     # ================= 6. مین مینو اور نیویگیشن (Sidebar & Navigation) =================
