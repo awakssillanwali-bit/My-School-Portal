@@ -839,7 +839,7 @@ elif sub_choice in ["تلاش (Search)", "Search"]:
                 df = pd.read_sql(f"SELECT * FROM students WHERE class='{search_class}' AND status='Active'", conn)
                 st.dataframe(df, use_container_width=True)
 
-    elif sub_choice in ["پروفائل پرنٹ کریں", "Print Profile"]:
+elif sub_choice in ["پروفائل پرنٹ کریں", "Print Profile"]:
         st.markdown(f"### 🖨️ {tr('طالب علم کی پروفائل پرنٹ کریں', 'Print Student Profile')}")
         p_reg = st.text_input(tr("رجسٹریشن نمبر لکھیں", "Enter Registration No for Profile"))
         if p_reg:
