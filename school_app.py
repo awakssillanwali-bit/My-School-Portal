@@ -876,7 +876,7 @@ elif sub_choice in ["پروفائل پرنٹ کریں", "Print Profile"]:
             else:
                 st.warning(tr("اس رجسٹریشن نمبر کا کوئی ریکارڈ نہیں ملا۔", "No record found."))
 
-    elif sub_choice in ["سرٹیفکیٹس اور لیٹر", "Certificates"]:
+elif sub_choice in ["سرٹیفکیٹس اور لیٹر", "Certificates"]:
         st.markdown(f"### 📜 {tr('سرٹیفکیٹس اور لیٹرز', 'Certificates & Letters')}")
         c_reg = st.text_input(tr("رجسٹریشن نمبر لکھیں", "Enter Registration No for Certificate"))
         c_type = st.selectbox(tr("سرٹیفکیٹ کی قسم", "Certificate Type"), ["School Leaving Certificate", "Character Certificate", "Fee Clearance Letter"])
@@ -892,7 +892,7 @@ elif sub_choice in ["پروفائل پرنٹ کریں", "Print Profile"]:
                 
                 if c_type == "School Leaving Certificate":
                     content += " The student has paid all dues and is leaving the school with our best wishes."
-                elif c_type == "Character Certificate":
+elif c_type == "Character Certificate":
                     content += " The student bears a good moral character and conduct."
                 else:
                     content += " All outstanding fees have been cleared by the student up to date."
@@ -916,7 +916,7 @@ elif sub_choice in ["پروفائل پرنٹ کریں", "Print Profile"]:
             else:
                 st.warning(tr("اس رجسٹریشن نمبر کا کوئی ریکارڈ نہیں ملا۔", "No record found."))
 
-    elif sub_choice in ["ایکسل سے امپورٹ", "Bulk Import"]:
+elif sub_choice in ["ایکسل سے امپورٹ", "Bulk Import"]:
         st.markdown(f"### 📥 {tr('ایکسل سے طلباء کا ڈیٹا امپورٹ کریں', 'Bulk Import Students from Excel')}")
         st.info(tr("نوٹ: ایکسل فائل میں کالمز کے نام یہ ہونے چاہئیں: Name, FatherName, Class, Phone, Address", "Note: Excel file must contain these columns: Name, FatherName, Class, Phone, Address"))
         
