@@ -285,11 +285,7 @@ if 'current_role' not in st.session_state:
     st.session_state.current_role = ""
 if 'ref_id' not in st.session_state:
     st.session_state.ref_id = ""
-# اگر یوزر لاگ ان نہیں ہے تو سسٹم یہیں رک جائے گا اور لاگ ان سکرین دکھائے گا
-if not st.session_state.logged_in:
-    login_system()
-    st.stop()
-active_session = get_active_session()
+    
 # ================= 7. مین مینو اور نیویگیشن (Sidebar & Navigation) =================
 def login_system():
     # لاگ ان پیج کا ڈیزائن
@@ -344,7 +340,9 @@ def get_active_session():
         return row[0] if row else "2026-27"
     except:
         return "2026-27"
-
+    if not st.session_state.logged_in:
+    login_system()
+    st.stop()
 active_session = get_active_session()
     # ================= 7. مین مینو اور نیویگیشن (Sidebar & Navigation) =================
 logo_base64_html = f'<img src="{logo_src_b64}" style="max-width: 80px; max-height: 80px; border-radius: 50%; border: 2px solid #1a4f8b; background: white; padding: 3px;">' if logo_src_b64 else '<div style="font-size:40px;">🏫</div>'
