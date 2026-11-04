@@ -255,19 +255,19 @@ def init_db():
     cursor.execute("SELECT * FROM settings")
     settings_data = {row[0]: row[1] if row[1] is not None else row[2] for row in cursor.fetchall()}
 
-school_name = settings_data.get("school_name", "Dar Ul Khadija School System")
-school_address = settings_data.get("school_address", "Sillanwali, Sargodha, Punjab")
-school_phone = settings_data.get("school_phone", "0300-0000000")
-school_email = settings_data.get("school_email", "info@school.com")
-school_reg = settings_data.get("school_reg", "Reg-12345")
-school_website = settings_data.get("school_website", "www.school.com")
-school_whatsapp = settings_data.get("school_whatsapp", "0300-0000000")
-school_facebook = settings_data.get("school_facebook", "facebook.com/school")
-today_date = datetime.date.today().strftime("%Y-%m-%d")
+    school_name = settings_data.get("school_name", "Dar Ul Khadija School System")
+    school_address = settings_data.get("school_address", "Sillanwali, Sargodha, Punjab")
+    school_phone = settings_data.get("school_phone", "0300-0000000")
+    school_email = settings_data.get("school_email", "info@school.com")
+    school_reg = settings_data.get("school_reg", "Reg-12345")
+    school_website = settings_data.get("school_website", "www.school.com")
+    school_whatsapp = settings_data.get("school_whatsapp", "0300-0000000")
+    school_facebook = settings_data.get("school_facebook", "facebook.com/school")
+    today_date = datetime.date.today().strftime("%Y-%m-%d")
 
 # لوگو (Logo) لوڈ کرنا
-logo_data = settings_data.get("school_logo")
-logo_src_b64 = ""
+   logo_data = settings_data.get("school_logo")
+   logo_src_b64 = ""
 if logo_data:
     logo_base64 = base64.b64encode(logo_data).decode()
     logo_src_b64 = f"data:image/jpeg;base64,{logo_base64}"
