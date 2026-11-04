@@ -250,34 +250,8 @@ def init_db():
     # پہلے ڈیٹا بیس کنکشن کو یقینی بنائیں تاکہ cursor کا ایرر نہ آئے
     conn = init_db()
     cursor = conn.cursor()
-
-    # ================= 5. سکول پروفائل =================
-elif core_choice == "School Profile":
-    st.title("🏫 School Details")
-    with st.form("school_profile_form"):
-        p_name = st.text_input("Full School Name", value=school_name)
-        p_address = st.text_input("Full Address", value=school_address)
-        col1, col2, col3 = st.columns(3)
-        p_phone = col1.text_input("Phone No", value=school_phone)
-        p_whatsapp = col2.text_input("WhatsApp No", value=school_whatsapp)
-        p_email = col3.text_input("Email ID", value=school_email)
-        col4, col5, col6 = st.columns(3)
-        p_website = col4.text_input("Website", value=school_website)
-        p_facebook = col5.text_input("Facebook", value=school_facebook)
-        p_reg = col6.text_input("Registration No", value=school_reg)
-        p_logo = st.file_uploader("Upload Logo", type=["png", "jpg", "jpeg"])
-        if st.form_submit_button("Save Details"):
-            for k, v in [("school_name", p_name), ("school_address", p_address), ("school_phone", p_phone), ("school_whatsapp", p_whatsapp), ("school_email", p_email), ("school_website", p_website), ("school_facebook", p_facebook), ("school_reg", p_reg)]:
-                cursor.execute("DELETE FROM settings WHERE key=?", (k,))
-                cursor.execute("INSERT INTO settings (key, value) VALUES (?, ?)", (k, v))
-            if p_logo:
-                cursor.execute("DELETE FROM settings WHERE key='school_logo'")
-                cursor.execute("INSERT INTO settings (key, blob_value) VALUES ('school_logo', ?)", (sqlite3.Binary(p_logo.read()),))
-            conn.commit()
-            st.success("Details Saved Successfully!")
-            st.rerun()
-
-# ================= 6. لاگ ان اور سیکیورٹی سسٹم (Login & Security System) =================
+    
+# ================= 5. لاگ ان اور سیکیورٹی سسٹم (Login & Security System) =================
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 if 'current_user' not in st.session_state:
@@ -344,7 +318,7 @@ def get_active_session():
 
 active_session = get_active_session()
 
-    # ================= 7. مین مینو اور نیویگیشن (Sidebar & Navigation) =================
+    # ================= 6. مین مینو اور نیویگیشن (Sidebar & Navigation) =================
 logo_base64_html = f'<img src="{logo_src_b64}" style="max-width: 80px; max-height: 80px; border-radius: 50%; border: 2px solid #1a4f8b; background: white; padding: 3px;">' if logo_src_b64 else '<div style="font-size:40px;">🏫</div>'
 
 with st.sidebar:
@@ -490,7 +464,301 @@ with st.sidebar:
         st.session_state.ref_id = ""
         st.rerun()
 
-# ================= 8. کلاسز لسٹ اور کامن ڈیٹا (Classes List) =================
+# ================= 7. ڈیش بورڈ (Dashboard) =================
+if core_choice in ["ڈیش بورڈ", "Dashboard"]:
+    
+    # --- 1. ماڈرن ٹاپ بار / سکول پروفائل ---
+    top_bar_logo = f'<img src="{logo_src_b64}" style="width: 35px; height: 35px; object-fit: contain; border-radius: 50%; border: 1px solid #ddd;">' if logo_src_b64 else '<div style="font-size:24px; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; background:#e2e8f0; border-radius:50%;">🏫</div>'
+    
+    # خالی لائنیں اور اسپیسز ختم کر دی گئی ہیں تاکہ کوڈ ٹیکسٹ نہ بنے
+    top_bar_html = f"""<div style="background-color: #ffffff; border-bottom: 1px solid #edf2f7; border-radius: 12px; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 25px; flex-wrap: wrap; gap: 15px;">
+<div style="display: flex; align-items: center; gap: 15px;">
+<div style="font-size: 20px; color: #4a5568; cursor: pointer;">☰</div>
+<div>
+<div style="font-size: 16px; font-weight: 800; color: #1a202c; font-family: system-ui, sans-serif;">{school_name}</div>
+<div style="font-size: 11px; color: #718096; margin-top: 1px;">All Campuses</div>
+<div style="font-size: 11px; color: #38a169; font-weight: bold; margin-top: 2px; display: flex; align-items: center; gap: 4px;">
+<span style="display: inline-block; width: 6px; height: 6px; background-color: #38a169; border-radius: 50%;"></span>
+Active Session {active_session}
+</div>
+</div>
+</div>
+<div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+<div style="display: flex; gap: 12px; color: #718096; font-size: 16px;">
+<span title="Support" style="cursor: pointer;">🎧</span>
+<span title="Messages" style="cursor: pointer;">💬</span>
+</div>
+<div style="background-color: #f7fafc; border: 1px solid #edf2f7; border-radius: 6px; padding: 4px 10px; font-size: 11px; color: #4a5568; font-weight: 600; display: flex; align-items: center; gap: 4px;">
+🌐 {st.session_state.ui_lang} ▾
+</div>
+<div style="display: flex; align-items: center; gap: 10px; border-left: 1px solid #e2e8f0; padding-left: 15px;">
+{top_bar_logo}
+<div style="line-height: 1.2;">
+<div style="font-size: 12px; font-weight: bold; color: #2d3748;">{st.session_state.current_user.capitalize()}</div>
+<div style="font-size: 10px; color: #718096; text-transform: uppercase; font-weight: 600;">{st.session_state.current_role}</div>
+</div>
+</div>
+</div>
+</div>"""
+    st.markdown(top_bar_html, unsafe_allow_html=True)
+
+    # --- 2. یوزر ویلکم کارڈ اور الرٹس (کالمز میں) ---
+    import datetime
+    current_hour = datetime.datetime.now().hour
+    if current_hour < 12: greeting_msg = "Good Morning! ☀️"
+    elif current_hour < 18: greeting_msg = "Good Afternoon! 🌤️"
+    else: greeting_msg = "Good Evening! 🌙"
+
+    if st.session_state.current_role == "Admin": user_icon = "👑"
+    elif st.session_state.current_role == "Operator": user_icon = "👨‍💻"
+    elif st.session_state.current_role == "Teacher": user_icon = "👨‍🏫"
+    else: user_icon = "👤"
+
+    col_welcome, col_alerts = st.columns([1.1, 2.9])
+
+    with col_welcome:
+        welcome_html = f"""
+        <div style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); padding: 30px 20px; border-radius: 20px; border: 1px solid #a5d6a7; box-shadow: 0 6px 15px rgba(0,0,0,0.04); text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 280px; margin-bottom: 20px;">
+            <div style="font-size: 50px; background: white; width: 85px; height: 85px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(0,0,0,0.08); border: 3px solid #81c784; margin-bottom: 15px;">
+                {user_icon}
+            </div>
+            <div style="font-size: 13px; color: #2e7d32; font-weight: bold; margin-bottom: 6px; letter-spacing: 0.5px;">
+                {greeting_msg}
+            </div>
+            <div style="font-size: 22px; font-weight: 900; color: #1b5e20; margin-bottom: 6px; text-transform: uppercase;">
+                {st.session_state.current_user}
+            </div>
+            <div style="font-size: 11px; background: #2e7d32; color: white; padding: 3px 12px; border-radius: 20px; display: inline-block; font-weight: bold; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.15); margin-bottom: 15px;">
+                🛡️ {st.session_state.current_role}
+            </div>
+            <div style="border-top: 1px solid rgba(46, 125, 50, 0.2); padding-top: 12px; width: 100%;">
+                <div style="font-size: 11.5px; color: #2e7d32; font-style: italic; line-height: 1.4;">
+                    "Wishing you a productive day! Let's achieve greatness today." ✨
+                </div>
+            </div>
+        </div>
+        """
+        st.markdown(welcome_html, unsafe_allow_html=True)
+        
+    with col_alerts:
+        # 🟢 نیا فیچر: برتھ ڈے الرٹ (Birthday Alerts)
+        today_md = datetime.date.today().strftime("-%m-%d")
+        
+        # ڈیٹا بیس سے ریکارڈ نکالنا (اگر name_en کالم موجود ہو تو وہ بھی لے آئے)
+        try:
+            bday_students = pd.read_sql(f"SELECT name, name_en, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", conn)
+        except:
+            bday_students = pd.read_sql(f"SELECT name, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", conn)
+            
+        try:
+            bday_staff = pd.read_sql(f"SELECT name, name_en, designation FROM staff WHERE dob LIKE '%{today_md}'", conn)
+        except:
+            bday_staff = pd.read_sql(f"SELECT name, designation FROM staff WHERE dob LIKE '%{today_md}'", conn)
+        
+        if not bday_students.empty or not bday_staff.empty:
+            bday_html = "<div style='background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); padding: 15px; border-radius: 12px; border: 2px solid #ff758c; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); margin-bottom: 15px; color: #d81b60;'>"
+            
+            # ٹائٹل زبان کے حساب سے
+            bday_title = tr("🎂 آج ان کی سالگرہ ہے! (Happy Birthday)", "🎂 Happy Birthday! Today is their special day.")
+            bday_html += f"<h4 style='margin:0 0 10px 0; display:flex; align-items:center; gap:8px;'>{bday_title}</h4><ul style='margin:0; padding-left:20px; font-size:14px; font-weight:bold;'>"
+            
+            for _, r in bday_students.iterrows():
+                # اگر انگلش نام موجود ہے اور انگلش زبان منتخب ہے
+                disp_name = str(r['name'])
+                if st.session_state.ui_lang == "English" and 'name_en' in r and pd.notna(r['name_en']) and str(r['name_en']).strip() not in ["", "None"]:
+                    disp_name = str(r['name_en'])
+                    
+                stu_lbl = tr("طالب علم", "Student")
+                cls_lbl = tr("کلاس", "Class")
+                bday_html += f"<li>🎉 {disp_name} - {stu_lbl} ({cls_lbl} {r['class']} {r['section']})</li>"
+                
+            for _, r in bday_staff.iterrows():
+                disp_name = str(r['name'])
+                if st.session_state.ui_lang == "English" and 'name_en' in r and pd.notna(r['name_en']) and str(r['name_en']).strip() not in ["", "None"]:
+                    disp_name = str(r['name_en'])
+                    
+                stf_lbl = tr("سٹاف", "Staff")
+                bday_html += f"<li>🎉 {disp_name} - {stf_lbl} ({r['designation']})</li>"
+                
+            bday_html += "</ul></div>"
+            st.markdown(bday_html, unsafe_allow_html=True)
+            st.balloons() # سکرین پر غبارے اڑیں گے
+            
+        # فیس ڈیفالٹرز کا بلنکر الرٹ
+        defaulters_html = ""
+        try:
+            today_str = datetime.date.today().strftime("%Y-%m-%d")
+            cursor.execute("SELECT COUNT(DISTINCT reg_id) FROM fees WHERE status='Unpaid' AND due_date < ?", (today_str,))
+            defaulters_count = cursor.fetchone()[0]
+            
+            if defaulters_count > 0:
+                # زبان کے حساب سے بلنکنگ میسج
+                alert_text = tr(
+                    f"🚨 الرٹ: {defaulters_count} طلباء کی فیس کی مقررہ تاریخ گزر چکی ہے! براہ کرم فیس کا سیکشن چیک کریں۔", 
+                    f"🚨 ALERT: The fee due date for {defaulters_count} student(s) has passed! Please check the Fees section."
+                )
+                
+                defaulters_html = f"""
+                <style>
+                @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
+                .blink_text {{
+                  animation: blinker 1s linear infinite; color: #c62828; background-color: #ffcdd2;
+                  padding: 15px; border-radius: 12px; font-weight: bold; font-size: 15px;
+                  border: 2px solid #b71c1c; box-shadow: 0px 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px;
+                }}
+                </style>
+                <div class="blink_text">
+                    {alert_text}
+                </div>
+                """
+        except: pass
+            
+        if defaulters_html:
+            st.markdown(defaulters_html, unsafe_allow_html=True)
+            
+        # سکول انفو کارڈ
+        st.markdown(f"""
+        <div style="background-color: #ffffff; padding: 25px; border-radius: 20px; border: 1px solid #edf2f7; box-shadow: 0 4px 6px rgba(0,0,0,0.02); display: flex; flex-direction: column; justify-content: center; height: { '190px' if defaulters_html else '100%' };">
+            <h4 style="margin: 0 0 15px 0; color: #2d3748; font-weight:800; display:flex; align-items:center; gap:8px;">🏫 School Information</h4>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; font-size: 13px; color: #4a5568;">
+                <div><span style="color:#3182ce; font-weight:bold;">📍 Address:</span> <span dir="ltr">{school_address}</span></div>
+                <div><span style="color:#38a169; font-weight:bold;">📞 Phone:</span> <span dir="ltr">{school_phone}</span></div>
+                <div><span style="color:#d69e2e; font-weight:bold;">📝 Reg No:</span> <span dir="ltr">{school_reg}</span></div>
+                <div><span style="color:#e53e3e; font-weight:bold;">📧 Email:</span> <span dir="ltr">{school_email}</span></div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.write("---")
+    
+    # --- 3. فوری لنکس (Quick Actions) ---
+    col_a, col_b, col_c, col_d = st.columns(4)
+    if col_a.button("➕ " + tr("نیا طالب علم", "Add Student"), use_container_width=True):
+        st.session_state.active_main_en = "Students Mgt"
+        st.session_state.active_sub_en = "New Admission"
+        st.rerun()
+    if col_b.button("👨‍🏫 " + tr("نیا ٹیچر", "Add Teacher"), use_container_width=True):
+        st.session_state.active_main_en = "Staff Mgt"
+        st.session_state.active_sub_en = "New Staff"
+        st.rerun()
+    if col_c.button("📅 " + tr("حاضری لگائیں", "Mark Attendance"), use_container_width=True):
+        st.session_state.active_main_en = "Attendance"
+        st.session_state.active_sub_en = "Student Attendance"
+        st.rerun()
+    if col_d.button("💵 " + tr("فیس چالان", "Generate Challan"), use_container_width=True):
+        st.session_state.active_main_en = "Fee & Salary"
+        st.session_state.active_sub_en = "Generate Fee Challans"
+        st.rerun()
+        
+    st.write("---")
+    
+    # --- 4. اعداد و شمار کارڈز (Metrics) ---
+    try: stud_df = pd.read_sql("SELECT * FROM students", conn)
+    except: stud_df = pd.DataFrame()
+        
+    try: staff_df = pd.read_sql("SELECT * FROM staff", conn)
+    except: staff_df = pd.DataFrame()
+        
+    try: acc_df = pd.read_sql("SELECT * FROM accounts", conn)
+    except: acc_df = pd.DataFrame()
+        
+    # بلکل درست کیلکولیشن (سنٹیکس ایرر حل ہو گیا ہے)
+    total_income = int(acc_df[acc_df["type"].isin(["آمدنی", "Income"])]["amount"].sum()) if not acc_df.empty else 0
+    total_expense = int(acc_df[acc_df["type"].isin(["خرچ", "Expense"])]["amount"].sum()) if not acc_df.empty else 0
+    curr_balance = total_income - total_expense
+    
+    def make_light_card(title, value, icon, bg_gradient, text_color="#1b5e20"):
+        return f"""<div style="background: {bg_gradient}; padding: 25px 20px; border-radius: 18px; box-shadow: 0 8px 20px rgba(0,0,0,0.05); border: 1px solid rgba(255,255,255,0.8); text-align: center; color: {text_color}; position: relative; overflow: hidden; transition: transform 0.3s ease;">
+        <div style="position: absolute; right: -10px; top: -20px; font-size: 100px; opacity: 0.1; color: {text_color}; transform: rotate(15deg);">{icon}</div>
+        <div style="font-size: 45px; margin-bottom: 5px; text-shadow: 1px 1px 2px rgba(0,0,0,0.05);">{icon}</div>
+        <div style="font-size: 15px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85;">{title}</div>
+        <div style="font-size: 32px; font-weight: 900; margin-top: 5px;">{value}</div>
+        </div>"""
+        
+    c1, c2, c3, c4 = st.columns(4)
+    c1.markdown(make_light_card(tr('کل طلباء', 'Total Students'), len(stud_df), "🎓", "linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%)", "#f57f17"), unsafe_allow_html=True)
+    c2.markdown(make_light_card(tr('کل سٹاف', 'Total Staff'), len(staff_df), "👨‍🏫", "linear-gradient(135deg, #f1f8e9 0%, #dcedc8 100%)", "#2e7d32"), unsafe_allow_html=True)
+    c3.markdown(make_light_card(tr('کل آمدنی', 'Total Income'), f"Rs {total_income:,}", "💰", "linear-gradient(135deg, #fffde7 0%, #fff59d 100%)", "#827717"), unsafe_allow_html=True)
+    c4.markdown(make_light_card(tr('موجودہ بیلنس', 'Current Balance'), f"Rs {curr_balance:,}", "🏦", "linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%)", "#1b5e20"), unsafe_allow_html=True)
+
+    st.write("---")
+    
+    # --- 5. نوٹس بورڈ, گراف اور چارٹس ---
+    st.markdown(f"### 📢 {tr('تازہ ترین نوٹس (Recent Notices)', 'Recent Notices')}")
+    try:
+        notices_df = pd.read_sql("SELECT date, audience, title, details FROM notices ORDER BY id DESC LIMIT 3", conn)
+        if not notices_df.empty:
+            for _, n_row in notices_df.iterrows():
+                st.info(f"**[{n_row['date']}] - {n_row['title']}** ({tr('کے لیے:', 'For:')} {n_row['audience']})\n\n{n_row['details']}")
+        else:
+            st.write(tr("کوئی نیا نوٹس نہیں۔", "No recent notices."))
+    except: pass
+
+    st.write("---")
+    st.markdown(f"### 📊 {tr('سافٹ ویئر ڈیش بورڈ جائزہ', 'Software Dashboard Overview')}")
+    c_chart1, c_chart2 = st.columns(2)
+    
+    with c_chart1:
+        st.markdown(f"#### 💰 {tr('مالیاتی رپورٹ (آمدنی اور خرچ)', 'Financial Report (Income vs Expense)')}")
+        try:
+            acc_df_chart = pd.read_sql("SELECT date, type, amount FROM accounts", conn)
+            if not acc_df_chart.empty:
+                acc_df_chart['type'] = acc_df_chart['type'].apply(lambda x: 'Income' if x in ['آمدنی', 'Income'] else 'Expense')
+                acc_pivot = acc_df_chart.groupby(['date', 'type'])['amount'].sum().unstack(fill_value=0)
+                st.area_chart(acc_pivot, use_container_width=True)
+            else: st.info(tr("مالیاتی ڈیٹا دستیاب نہیں۔", "No financial data available."))
+        except: st.info(tr("مالیاتی ڈیٹا دستیاب نہیں۔", "No financial data available."))
+            
+    with c_chart2:
+        st.markdown(f"#### 📈 {tr('حاضری کا رجحان', 'Attendance Trend (Present)')}")
+        try:
+            att_chart_df = pd.read_sql("SELECT date, type, count(*) as count FROM attendance WHERE status IN ('Present', '🟢 Present', '🟢 حاضر') GROUP BY date, type ORDER BY date DESC LIMIT 30", conn)
+            if not att_chart_df.empty:
+                att_chart_df['type'] = att_chart_df['type'].apply(lambda x: 'Students' if x in ['طالب علم', 'Student'] else 'Staff')
+                att_pivot = att_chart_df.pivot(index='date', columns='type', values='count').fillna(0)
+                st.line_chart(att_pivot, use_container_width=True)
+            else: st.info(tr("حاضری کا ڈیٹا دستیاب نہیں۔", "No attendance data available."))
+        except: st.info(tr("حاضری کا ڈیٹا دستیاب نہیں۔", "No attendance data available."))
+            
+    st.markdown(f"#### 🏆 {tr('کلاس وار تعلیمی کارکردگی (اوسط مارکس %)', 'Class-wise Academic Performance (Avg %)')}")
+    try:
+        acad_df = pd.read_sql("SELECT s.class, em.obtained_marks, em.total_marks FROM exam_marks em JOIN students s ON em.reg_id = s.reg_id", conn)
+        if not acad_df.empty:
+            acad_df['percentage'] = (acad_df['obtained_marks'] / acad_df['total_marks']) * 100
+            class_perf = acad_df.groupby('class')['percentage'].mean().reset_index()
+            class_perf.set_index('class', inplace=True)
+            st.bar_chart(class_perf, use_container_width=True)
+        else: st.info(tr("امتحانات کا ڈیٹا دستیاب نہیں۔", "No academic data available."))
+    except: st.info(tr("امتحانات کا ڈیٹا دستیاب نہیں۔", "No academic data available."))
+
+# ================= 8. سکول پروفائل =================
+elif core_choice == "School Profile":
+    st.title("🏫 School Details")
+    with st.form("school_profile_form"):
+        p_name = st.text_input("Full School Name", value=school_name)
+        p_address = st.text_input("Full Address", value=school_address)
+        col1, col2, col3 = st.columns(3)
+        p_phone = col1.text_input("Phone No", value=school_phone)
+        p_whatsapp = col2.text_input("WhatsApp No", value=school_whatsapp)
+        p_email = col3.text_input("Email ID", value=school_email)
+        col4, col5, col6 = st.columns(3)
+        p_website = col4.text_input("Website", value=school_website)
+        p_facebook = col5.text_input("Facebook", value=school_facebook)
+        p_reg = col6.text_input("Registration No", value=school_reg)
+        p_logo = st.file_uploader("Upload Logo", type=["png", "jpg", "jpeg"])
+        if st.form_submit_button("Save Details"):
+            for k, v in [("school_name", p_name), ("school_address", p_address), ("school_phone", p_phone), ("school_whatsapp", p_whatsapp), ("school_email", p_email), ("school_website", p_website), ("school_facebook", p_facebook), ("school_reg", p_reg)]:
+                cursor.execute("DELETE FROM settings WHERE key=?", (k,))
+                cursor.execute("INSERT INTO settings (key, value) VALUES (?, ?)", (k, v))
+            if p_logo:
+                cursor.execute("DELETE FROM settings WHERE key='school_logo'")
+                cursor.execute("INSERT INTO settings (key, blob_value) VALUES ('school_logo', ?)", (sqlite3.Binary(p_logo.read()),))
+            conn.commit()
+            st.success("Details Saved Successfully!")
+            st.rerun()
+
+
+# ================= 9. کلاسز لسٹ اور کامن ڈیٹا (Classes List) =================
 try:
     classes_df = pd.read_sql("SELECT class_name FROM sys_classes ORDER BY id", conn)
     classes_list = classes_df['class_name'].tolist()
@@ -499,7 +767,7 @@ try:
 except:
     classes_list = ["Playgroup", "Nursery", "Prep", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th"]
     
-    # ================= 9. ڈیش بورڈ (Dashboard) =================
+    # ================= 10. ڈیش بورڈ (Dashboard) =================
 if core_choice in ["ڈیش بورڈ", "Dashboard"]:
     if st.session_state.current_role not in ["Admin", "Operator", "Teacher"]:
         st.warning(tr("آپ کو یہ صفحہ دیکھنے کی اجازت نہیں ہے۔", "You don't have permission to view this page."))
@@ -634,7 +902,7 @@ if core_choice in ["ڈیش بورڈ", "Dashboard"]:
         except:
             c3.markdown(f"<div style='background:linear-gradient(135deg, #d69e2e, #ecc94b); color:white; padding:20px; border-radius:15px; text-align:center;'><h3>📋 {tr('آج کی حاضری', 'Today Attendance')}</h3><h1>0%</h1></div>", unsafe_allow_html=True)
             
-# ================= 10. طلباء کا ریکارڈ (Students Management) =================
+# ================= 11. طلباء کا ریکارڈ (Students Management) =================
 elif core_choice in ["سٹوڈنٹ مینجمنٹ", "Students Mgt"]:
     st.markdown(f"<h2 class='no-print'>👨‍🎓 {tr('طلباء کا ریکارڈ (Students Mgt)', 'Students Management')} - {sub_choice}</h2>", unsafe_allow_html=True)
 
@@ -983,7 +1251,7 @@ elif sub_choice in ["ایکسل سے امپورٹ", "Bulk Import"]:
             except Exception as e:
                 st.error(f"Error: {e}")
             
-# ================= 11. سٹاف کا ریکارڈ (Staff Management) =================
+# ================= 11.5. سٹاف کا ریکارڈ (Staff Management) =================
 elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
     st.markdown(f"<h2 class='no-print'>👨‍🏫 {tr('سٹاف کا ریکارڈ (Staff Mgt)', 'Staff Management')} - {sub_choice}</h2>", unsafe_allow_html=True)
     
