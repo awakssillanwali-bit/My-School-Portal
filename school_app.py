@@ -251,43 +251,31 @@ def init_db():
     conn = init_db()
     cursor = conn.cursor()
 
-# ================= 5. سکول کی سیٹنگز اور لوگو (School Settings & Logo) =================
-settings_data = {}
-
-try:
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM settings")
-    
-    for row in cursor.fetchall():
-        key = row[0]
-        # محفوظ طریقہ تاکہ انڈیکس کا ایرر نہ آئے
-        if len(row) > 2 and row[2] is not None:
-            settings_data[key] = row[2]
-        else:
-            settings_data[key] = row[1]
-except Exception as e:
-    pass # اگر ڈیٹا بیس میں کوئی مسئلہ ہوا تب بھی ایپ نہیں رکے گی
-
-school_name = settings_data.get("school_name", "Dar-ul-Khadija School System")
-school_address = settings_data.get("school_address", "Aslamabad Colony, Sillanwali, Sargodha")
-school_phone = settings_data.get("school_phone", "0300-0000000")
-school_email = settings_data.get("school_email", "info@school.com")
-school_reg = settings_data.get("school_reg", "Reg-12345")
-school_website = settings_data.get("school_website", "www.school.com")
-school_whatsapp = settings_data.get("school_whatsapp", "0300-0000000")
-school_facebook = settings_data.get("school_facebook", "facebook.com/school")
-today_date = datetime.date.today().strftime("%Y-%m-%d")
-
-# لوگو (Logo) لوڈ کرنا
-logo_data = settings_data.get("school_logo")
-logo_src_b64 = ""
-
-if logo_data and isinstance(logo_data, bytes):
-    logo_base64 = base64.b64encode(logo_data).decode()
-    logo_src_b64 = f"data:image/jpeg;base64,{logo_base64}"
-else:
-    logo_src_b64 = "https://cdn-icons-png.flaticon.com/512/104/104655.png"
+# ================= 5. سکول پروفائل =================
+elif core_choice == "School Profile":
+    st.title("🏫 School Details")
+    with st.form("school_profile_form"):
+        p_name = st.text_input("Full School Name", value=school_name)
+        p_address = st.text_input("Full Address", value=school_address)
+        col1, col2, col3 = st.columns(3)
+        p_phone = col1.text_input("Phone No", value=school_phone)
+        p_whatsapp = col2.text_input("WhatsApp No", value=school_whatsapp)
+        p_email = col3.text_input("Email ID", value=school_email)
+        col4, col5, col6 = st.columns(3)
+        p_website = col4.text_input("Website", value=school_website)
+        p_facebook = col5.text_input("Facebook", value=school_facebook)
+        p_reg = col6.text_input("Registration No", value=school_reg)
+        p_logo = st.file_uploader("Upload Logo", type=["png", "jpg", "jpeg"])
+        if st.form_submit_button("Save Details"):
+            for k, v in [("school_name", p_name), ("school_address", p_address), ("school_phone", p_phone), ("school_whatsapp", p_whatsapp), ("school_email", p_email), ("school_website", p_website), ("school_facebook", p_facebook), ("school_reg", p_reg)]:
+                cursor.execute("DELETE FROM settings WHERE key=?", (k,))
+                cursor.execute("INSERT INTO settings (key, value) VALUES (?, ?)", (k, v))
+            if p_logo:
+                cursor.execute("DELETE FROM settings WHERE key='school_logo'")
+                cursor.execute("INSERT INTO settings (key, blob_value) VALUES ('school_logo', ?)", (sqlite3.Binary(p_logo.read()),))
+            conn.commit()
+            st.success("Details Saved Successfully!")
+            st.rerun()
 
 # ================= 6. لاگ ان اور سیکیورٹی سسٹم (Login & Security System) =================
 if 'logged_in' not in st.session_state:
