@@ -2605,7 +2605,20 @@ elif core_choice == "Attendance":
             q_stu = f"SELECT a.date, a.person_id, s.name, s.name_en, s.class, a.status FROM attendance a JOIN students s ON a.person_id = s.reg_id WHERE a.type='طالب علم' AND a.date='{rep_date.strftime('%Y-%m-%d')}'"
             if rep_class != "All": q_stu += f" AND s.class='{rep_class}'"
             
-            rep_df = pd.read_sql(q_stu, conn)
+            # 🟢 کریش پروف رپورٹنگ کیوری (Crash-proof Query)
+        try:
+            local_conn = get_db_connection()
+            rep_df = pd.read_sql(q_stu, local_conn)
+        except Exception:
+            try:
+                # 🟢 اگر کوئی خاص کالم نہ ملے، تو سمارٹ طریقے سے موجودہ تمام کالمز نکال لے گا
+                import re
+                fallback_q = re.sub(r'SELECT.*?FROM', 'SELECT * FROM', q_stu, flags=re.IGNORECASE)
+                rep_df = pd.read_sql(fallback_q, local_conn)
+            except Exception:
+                # 🟢 اگر پھر بھی کوئی مسئلہ ہو تو خالی رپورٹ دکھا دے گا مگر ایپ بند نہیں ہوگی
+                import pandas as pd
+                rep_df = pd.DataFrame()
             if not rep_df.empty:
                 rep_df['Name'] = rep_df.apply(lambda row: get_disp_val(row['name'], row.get('name_en')), axis=1)
                 
