@@ -251,7 +251,7 @@ def init_db():
     conn = init_db()
     cursor = conn.cursor()
 
-# ================= 5. سکول پروفائل =================
+    # ================= 5. سکول پروفائل =================
 elif core_choice == "School Profile":
     st.title("🏫 School Details")
     with st.form("school_profile_form"):
