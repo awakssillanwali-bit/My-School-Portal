@@ -2717,7 +2717,6 @@ elif core_choice == "Attendance":
             conn.commit() 
             # ڈیٹا بیس سے درخواستیں لانا
             # 🟢 کریش پروف چھٹی کی درخواستوں کا سسٹم (Crash-proof Leave Requests)
-        try:
             local_conn = get_db_connection()
             # پہلی کوشش: name_en اور section کے ساتھ
             leave_q = "SELECT lr.id, lr.reg_id, s.name, s.name_en, s.class, s.section, lr.date, lr.reason, lr.status, lr.admin_remarks FROM leave_requests lr JOIN students s ON lr.reg_id = s.reg_id ORDER BY lr.id DESC"
