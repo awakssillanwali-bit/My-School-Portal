@@ -4164,7 +4164,13 @@ elif core_choice in ["پیرنٹ پورٹل", "Parent Portal"]:
     st.markdown(f"<h2 class='no-print'>👨‍👩‍👦 {tr('والدین کا پورٹل (Parent Dashboard)', 'Parent Portal')}</h2>", unsafe_allow_html=True)
     
     curr_u = st.session_state.current_user
-    stu_df = pd.read_sql(f"SELECT * FROM students WHERE phone='{curr_u}' OR reg_id=REPLACE('{curr_u}', 'parent_', '')", conn)
+    u_ref_id = st.session_state.get('ref_id', None)
+    
+    # 🟢 سمارٹ لنکنگ: یوزر کو سیدھا سٹوڈنٹ کے رول نمبر سے جوڑنا
+    if u_ref_id and u_ref_id not in ["None", "N/A", ""]:
+        stu_df = pd.read_sql(f"SELECT * FROM students WHERE reg_id='{u_ref_id}'", conn)
+    else:
+        stu_df = pd.read_sql(f"SELECT * FROM students WHERE phone='{curr_u}' OR reg_id=REPLACE('{curr_u}', 'parent_', '')", conn)
     
     if not stu_df.empty:
         stu = stu_df.iloc[0]
