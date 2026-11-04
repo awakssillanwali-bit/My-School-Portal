@@ -2147,6 +2147,9 @@ elif core_choice in ["نوٹس بورڈ", "Notice Board"]:
 elif core_choice in ["پیرنٹ پورٹل", "Parent Portal"]:
     st.markdown(f"<h2 class='no-print'>👨‍👩‍👦 {tr('والدین کا پورٹل (Parent Dashboard)', 'Parent Portal')}</h2>", unsafe_allow_html=True)
     
+    # 🟢 ڈیٹا بیس کا نیا کنکشن تاکہ conn کا کوئی ایرر نہ آئے
+    conn = get_db_connection()
+    
     curr_u = st.session_state.current_user
     u_ref_id = st.session_state.get('ref_id', None)
     
