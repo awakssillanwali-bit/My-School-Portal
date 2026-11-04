@@ -2473,7 +2473,19 @@ elif core_choice == "Attendance":
         att_class = c_att1.selectbox(tr("کلاس منتخب کریں", "Select Class"), classes_list, key="att_stu_cls")
         att_date = c_att2.date_input(tr("تاریخ", "Date"), datetime.date.today(), key="att_stu_date")
 
-        stu_df = pd.read_sql(f"SELECT reg_id, name, name_en FROM students WHERE class='{att_class}' AND status='Active'", conn)
+        # 🟢 کریش پروف سٹوڈنٹ لسٹ (اگر name_en کالم موجود نہ ہو تو ایپ بند نہیں ہوگی)
+        try:
+            local_conn = get_db_connection()
+            # پہلی کوشش: انگلش نام والے کالم کے ساتھ
+            stu_df = pd.read_sql(f"SELECT reg_id, name, name_en FROM students WHERE class='{att_class}' AND status='Active'", local_conn)
+        except Exception:
+            try:
+                # دوسری کوشش: بغیر name_en کے (اگر پرانا ڈیٹا بیس ہے)
+                stu_df = pd.read_sql(f"SELECT reg_id, name FROM students WHERE class='{att_class}' AND status='Active'", local_conn)
+            except Exception:
+                # 🟢 اگر کوئی اور بھی مسئلہ ہو تو کریش ہونے کے بجائے خالی لسٹ بن جائے گی
+                import pandas as pd
+                stu_df = pd.DataFrame()
         if not stu_df.empty:
             existing_att = pd.read_sql(f"SELECT person_id, status FROM attendance WHERE date='{att_date.strftime('%Y-%m-%d')}' AND type='طالب علم'", conn)
             att_map = dict(zip(existing_att['person_id'], existing_att['status']))
