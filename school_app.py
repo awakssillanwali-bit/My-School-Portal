@@ -615,6 +615,9 @@ if core_choice in ["ڈیش بورڈ", "Dashboard"]:
         """, unsafe_allow_html=True)
 
     if st.session_state.current_role in ["Admin", "Operator"]:
+        # 🟢 ڈیٹا بیس کا نیا کنکشن تاکہ کریش نہ ہو
+        conn = get_db_connection()
+        
         total_students = pd.read_sql("SELECT COUNT(*) FROM students WHERE status='Active'", conn).iloc[0,0]
         total_staff = pd.read_sql("SELECT COUNT(*) FROM staff", conn).iloc[0,0]
         
