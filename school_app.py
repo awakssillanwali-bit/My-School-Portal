@@ -252,18 +252,33 @@ def init_db():
     cursor = conn.cursor()
 
 # ================= 5. سکول کی سیٹنگز اور لوگو (School Settings & Logo) =================
-    cursor.execute("SELECT * FROM settings")
-    settings_data = {row[0]: row[1] if row[1] is not None else row[2] for row in cursor.fetchall()}
+settings_data = {}
 
-    school_name = settings_data.get("school_name", "Dar Ul Khadija School System")
-    school_address = settings_data.get("school_address", "Sillanwali, Sargodha, Punjab")
-    school_phone = settings_data.get("school_phone", "0300-0000000")
-    school_email = settings_data.get("school_email", "info@school.com")
-    school_reg = settings_data.get("school_reg", "Reg-12345")
-    school_website = settings_data.get("school_website", "www.school.com")
-    school_whatsapp = settings_data.get("school_whatsapp", "0300-0000000")
-    school_facebook = settings_data.get("school_facebook", "facebook.com/school")
-    today_date = datetime.date.today().strftime("%Y-%m-%d")
+try:
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM settings")
+    
+    for row in cursor.fetchall():
+        key = row[0]
+        # محفوظ طریقہ تاکہ انڈیکس کا ایرر نہ آئے
+        if len(row) > 2 and row[2] is not None:
+            settings_data[key] = row[2]
+        else:
+            settings_data[key] = row[1]
+except Exception as e:
+    pass # اگر ڈیٹا بیس میں کوئی مسئلہ ہوا تب بھی ایپ نہیں رکے گی
+
+school_name = settings_data.get("school_name", "Dar-ul-Khadija School System")
+school_address = settings_data.get("school_address", "Aslamabad Colony, Sillanwali, Sargodha")
+school_phone = settings_data.get("school_phone", "0300-0000000")
+school_email = settings_data.get("school_email", "info@school.com")
+school_reg = settings_data.get("school_reg", "Reg-12345")
+school_website = settings_data.get("school_website", "www.school.com")
+school_whatsapp = settings_data.get("school_whatsapp", "0300-0000000")
+school_facebook = settings_data.get("school_facebook", "facebook.com/school")
+today_date = datetime.date.today().strftime("%Y-%m-%d")
+
 # لوگو (Logo) لوڈ کرنا
 logo_data = settings_data.get("school_logo")
 logo_src_b64 = ""
@@ -273,60 +288,6 @@ if logo_data and isinstance(logo_data, bytes):
     logo_src_b64 = f"data:image/jpeg;base64,{logo_base64}"
 else:
     logo_src_b64 = "https://cdn-icons-png.flaticon.com/512/104/104655.png"
-# ================= 6. لاگ ان اور سیکیورٹی سسٹم (Login & Security System) =================
-if 'logged_in' not in st.session_state:
-    st.session_state.logged_in = False
-if 'current_user' not in st.session_state:
-    st.session_state.current_user = ""
-if 'current_role' not in st.session_state:
-    st.session_state.current_role = ""
-if 'ref_id' not in st.session_state:
-    st.session_state.ref_id = ""
-
-def login_system():
-    # لاگ ان پیج کا ڈیزائن
-    st.markdown(f"""
-    <div style="text-align: center; margin-top: 50px; margin-bottom: 20px;">
-        <img src="{logo_src_b64}" style="width: 140px; height: 140px; object-fit: contain; padding: 5px; background: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-        <h1 style="color: #1a4f8b; margin-top: 15px; font-family: 'Arial', sans-serif;">{school_name.upper()}</h1>
-        <p style="color: #666; font-size: 16px; margin-top: -10px; font-weight: bold;">{school_address}</p>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    col1, col2, col3 = st.columns([1, 1.2, 1])
-    with col2:
-        st.markdown(f"<h3 style='text-align: center; color: #333; margin-bottom: 20px;'>🔐 {tr('سسٹم میں لاگ ان کریں', 'Login to System')}</h3>", unsafe_allow_html=True)
-        with st.form("login_form"):
-            username = st.text_input(tr("یوزر نیم (Username)", "Username"), placeholder="admin")
-            password = st.text_input(tr("پاسورڈ (Password)", "Password"), type="password", placeholder="1234")
-            login_btn = st.form_submit_button(tr("لاگ ان (Login)", "Login"), type="primary", use_container_width=True)
-            
-            if login_btn:
-                # مین ایڈمن اکاؤنٹ چیک
-                if username == "admin" and password == settings_data.get("password", "1234"):
-                    st.session_state.logged_in = True
-                    st.session_state.current_user = "Admin"
-                    st.session_state.current_role = "Admin"
-                    st.session_state.ref_id = "N/A"
-                    st.rerun()
-                else:
-                    # دیگر یوزرز (اساتذہ، والدین، آپریٹرز) کی چیکنگ
-                    cursor.execute("SELECT role, ref_id FROM users WHERE username=? AND password=?", (username, password))
-                    user_data = cursor.fetchone()
-                    
-                    if user_data:
-                        st.session_state.logged_in = True
-                        st.session_state.current_user = username
-                        st.session_state.current_role = user_data[0]
-                        st.session_state.ref_id = user_data[1]
-                        st.rerun()
-                    else:
-                        st.error(tr("❌ غلط یوزر نیم یا پاسورڈ۔ براہ کرم دوبارہ کوشش کریں۔", "❌ Incorrect username or password. Please try again."))
-
-# اگر یوزر لاگ ان نہیں ہے تو سسٹم یہیں رک جائے گا (اس سے آگے کا کوڈ رن نہیں ہوگا)
-if not st.session_state.logged_in:
-    login_system()
-    st.stop()
 
     # ================= 7. مین مینو اور نیویگیشن (Sidebar & Navigation) =================
 logo_base64_html = f'<img src="{logo_src_b64}" style="max-width: 80px; max-height: 80px; border-radius: 50%; border: 2px solid #1a4f8b; background: white; padding: 3px;">' if logo_src_b64 else '<div style="font-size:40px;">🏫</div>'
