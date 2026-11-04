@@ -266,8 +266,8 @@ def init_db():
     today_date = datetime.date.today().strftime("%Y-%m-%d")
 
 # لوگو (Logo) لوڈ کرنا
-logo_data = settings_data.get("school_logo")
-logo_src_b64 = ""
+    logo_data = settings_data.get("school_logo")
+    logo_src_b64 = ""
 if logo_data:
     logo_base64 = base64.b64encode(logo_data).decode()
     logo_src_b64 = f"data:image/jpeg;base64,{logo_base64}"
