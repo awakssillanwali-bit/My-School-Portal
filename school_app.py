@@ -267,12 +267,12 @@ def init_db():
 # لوگو (Logo) لوڈ کرنا
 logo_data = settings_data.get("school_logo")
 logo_src_b64 = ""
-if logo_data:
+
+if logo_data and isinstance(logo_data, bytes):
     logo_base64 = base64.b64encode(logo_data).decode()
     logo_src_b64 = f"data:image/jpeg;base64,{logo_base64}"
 else:
     logo_src_b64 = "https://cdn-icons-png.flaticon.com/512/104/104655.png"
-
 # ================= 6. لاگ ان اور سیکیورٹی سسٹم (Login & Security System) =================
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
