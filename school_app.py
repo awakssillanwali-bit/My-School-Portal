@@ -324,7 +324,7 @@ try:
 except NameError:
         safe_logo = "https://cdn-icons-png.flaticon.com/512/104/104655.png"
 
-    logo_base64_html = f'<img src="{safe_logo}" style="max-width: 80px; max-height: 80px; border: 2px solid #1a4f8b; background: white; padding: 3px;">'
+logo_base64_html = f'<img src="{safe_logo}" style="max-width: 80px; max-height: 80px; border: 2px solid #1a4f8b; background: white; padding: 3px;">'
 with st.sidebar:
     st.markdown(f"""
     <div style='display: flex; align-items: center; gap: 10px; margin-bottom: 20px;'>
