@@ -313,23 +313,24 @@ def login_system():
                     st.session_state.ref_id = "N/A"
                     st.rerun()
                 else:
-                    # دیگر یوزرز (اساتذہ، والدین، آپریٹرز) کی چیکنگ
-                    cursor.execute("SELECT role, ref_id FROM users WHERE username=? AND password=?", (username, password))
-                    user_data = cursor.fetchone()
-                    
-                    if user_data:
-                        st.session_state.logged_in = True
-                        st.session_state.current_user = username
-                        st.session_state.current_role = user_data[0]
-                        st.session_state.ref_id = user_data[1]
-                        st.rerun()
-                    else:
-                        st.error(tr("❌ غلط یوزر نیم یا پاسورڈ۔ براہ کرم دوبارہ کوشش کریں۔", "❌ Incorrect username or password. Please try again."))
+                    # 🟢 ایرر سے بچنے کے لیے فنکشن کے اندر لوکل کرسر (Local Cursor) کا استعمال
+                    try:
+                        local_conn = get_db_connection()
+                        local_cursor = local_conn.cursor()
+                        local_cursor.execute("SELECT role, ref_id FROM users WHERE username=? AND password=?", (username, password))
+                        user_data = local_cursor.fetchone()
+                        
+                        if user_data:
+                            st.session_state.logged_in = True
+                            st.session_state.current_user = username
+                            st.session_state.current_role = user_data[0]
+                            st.session_state.ref_id = user_data[1]
+                            st.rerun()
+                        else:
+                            st.error(tr("❌ غلط یوزر نیم یا پاسورڈ۔ براہ کرم دوبارہ کوشش کریں۔", "❌ Incorrect username or password. Please try again."))
+                    except Exception as e:
+                        st.error(f"Database Error: {e}")
 
-# اگر یوزر لاگ ان نہیں ہے تو سسٹم یہیں رک جائے گا (اس سے آگے کا کوڈ رن نہیں ہوگا)
-if not st.session_state.logged_in:
-    login_system()
-    st.stop()
     # ================= 7. مین مینو اور نیویگیشن (Sidebar & Navigation) =================
 logo_base64_html = f'<img src="{logo_src_b64}" style="max-width: 80px; max-height: 80px; border-radius: 50%; border: 2px solid #1a4f8b; background: white; padding: 3px;">' if logo_src_b64 else '<div style="font-size:40px;">🏫</div>'
 
