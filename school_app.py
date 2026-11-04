@@ -2723,7 +2723,7 @@ elif core_choice == "Attendance":
             leave_q = "SELECT lr.id, lr.reg_id, s.name, s.name_en, s.class, s.section, lr.date, lr.reason, lr.status, lr.admin_remarks FROM leave_requests lr JOIN students s ON lr.reg_id = s.reg_id ORDER BY lr.id DESC"
             requests_df = pd.read_sql(leave_q, local_conn)
         except Exception:
-            try:
+        try:
                 local_conn = get_db_connection()
                 leave_q_fallback = "SELECT lr.id, lr.reg_id, s.name, s.class, lr.date, lr.reason, lr.status, lr.admin_remarks FROM leave_requests lr JOIN students s ON lr.reg_id = s.reg_id ORDER BY lr.id DESC"
                 requests_df = pd.read_sql(leave_q_fallback, local_conn)
