@@ -2716,19 +2716,18 @@ elif core_choice == "Attendance":
             except: pass
             conn.commit() 
             # ڈیٹا بیس سے درخواستیں لانا
-            # 🟢 کریش پروف چھٹی کی درخواستوں کا سسٹم (Crash-proof Leave Requests)
+           # 🟢 کریش پروف چھٹی کی درخواستوں کا سسٹم (Crash-proof Leave Requests)
+        # نوٹ: یہاں اوپر یا نیچے کوئی فالتو try: یا except: نہیں ہونا چاہیے
         try:
             local_conn = get_db_connection()
-            # پہلی کوشش: name_en اور section کے ساتھ
             leave_q = "SELECT lr.id, lr.reg_id, s.name, s.name_en, s.class, s.section, lr.date, lr.reason, lr.status, lr.admin_remarks FROM leave_requests lr JOIN students s ON lr.reg_id = s.reg_id ORDER BY lr.id DESC"
             requests_df = pd.read_sql(leave_q, local_conn)
         except Exception:
             try:
-                # دوسری کوشش: name_en اور section کے بغیر (اگر پرانا ڈیٹا بیس ہو)
+                local_conn = get_db_connection()
                 leave_q_fallback = "SELECT lr.id, lr.reg_id, s.name, s.class, lr.date, lr.reason, lr.status, lr.admin_remarks FROM leave_requests lr JOIN students s ON lr.reg_id = s.reg_id ORDER BY lr.id DESC"
                 requests_df = pd.read_sql(leave_q_fallback, local_conn)
             except Exception:
-                # 🟢 اگر کوئی اور کالم بھی مسنگ ہو تو خالی لسٹ بن جائے گی مگر ایپ بند نہیں ہوگی
                 import pandas as pd
                 requests_df = pd.DataFrame()
             
