@@ -321,7 +321,7 @@ active_session = get_active_session()
     # ================= 6. مین مینو اور نیویگیشن (Sidebar & Navigation) =================
 try:
         safe_logo = logo_src_b64
-    except NameError:
+except NameError:
         safe_logo = "https://cdn-icons-png.flaticon.com/512/104/104655.png"
 
     logo_base64_html = f'<img src="{safe_logo}" style="max-width: 80px; max-height: 80px; border: 2px solid #1a4f8b; background: white; padding: 3px;">'
