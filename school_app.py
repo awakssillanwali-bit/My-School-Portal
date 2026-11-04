@@ -266,12 +266,12 @@ def init_db():
     today_date = datetime.date.today().strftime("%Y-%m-%d")
 
 # لوگو (Logo) لوڈ کرنا
-    logo_data = settings_data.get("school_logo")
-    logo_src_b64 = ""
- if logo_data:
+logo_data = settings_data.get("school_logo")
+logo_src_b64 = ""
+if logo_data:
     logo_base64 = base64.b64encode(logo_data).decode()
     logo_src_b64 = f"data:image/jpeg;base64,{logo_base64}"
- else:
+else:
     logo_src_b64 = "https://cdn-icons-png.flaticon.com/512/104/104655.png"
 
 # ================= 6. لاگ ان اور سیکیورٹی سسٹم (Login & Security System) =================
@@ -288,7 +288,7 @@ def login_system():
     # لاگ ان پیج کا ڈیزائن
     st.markdown(f"""
     <div style="text-align: center; margin-top: 50px; margin-bottom: 20px;">
-        <img src="{logo_src_b64}" style="width: 120px; height: 120px; object-fit: contain; border-radius: 50%; border: 4px solid #1a4f8b; padding: 5px; background: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+        <img src="{logo_src_b64}" style="width: 140px; height: 140px; object-fit: contain; padding: 5px; background: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
         <h1 style="color: #1a4f8b; margin-top: 15px; font-family: 'Arial', sans-serif;">{school_name.upper()}</h1>
         <p style="color: #666; font-size: 16px; margin-top: -10px; font-weight: bold;">{school_address}</p>
     </div>
