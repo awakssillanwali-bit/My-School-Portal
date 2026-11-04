@@ -1301,7 +1301,6 @@ elif sub_choice in ["آج کی رپورٹ", "Today's Report"]:
             st.dataframe(df_rep, use_container_width=True)
         else:
             st.info(tr("اس تاریخ کی کوئی حاضری نہیں لگی۔", "No attendance found for this date."))
-
 elif sub_choice in ["ماہانہ رپورٹ", "Monthly Report"]:
         st.markdown(f"### 📅 {tr('ماہانہ حاضری رپورٹ', 'Monthly Attendance Report')}")
         m_type = st.radio(tr("رپورٹ کی قسم", "Report Type"), [tr("طلباء (Students)", "Students"), tr("سٹاف (Staff)", "Staff")], horizontal=True, key="m_type")
@@ -1313,8 +1312,7 @@ elif sub_choice in ["ماہانہ رپورٹ", "Monthly Report"]:
         
         if st.button(tr("رپورٹ بنائیں", "Generate Report"), type="primary"):
             like_str = f"{m_year}-{m_month}-%"
-        df_mon = pd.read_sql(f"SELECT person_id, status FROM 
-            attendance WHERE date LIKE '{like_str}' AND type='{m_type_en}'", conn)
+            df_mon = pd.read_sql(f"SELECT person_id, status FROM attendance WHERE date LIKE '{like_str}' AND type='{m_type_en}'", conn)
             
             if not df_mon.empty:
                 report_data = []
