@@ -1185,7 +1185,7 @@ elif sub_choice in ["ریکارڈ / ایڈٹ", "Edit/Search Staff"]:
         else:
             st.info(tr("کوئی سٹاف موجود نہیں ہے۔", "No staff record available."))
 
-    elif sub_choice in ["آئی ڈی کارڈز پرنٹ", "Print ID Cards"]:
+elif sub_choice in ["آئی ڈی کارڈز پرنٹ", "Print ID Cards"]:
         st.markdown(f"### 🪪 {tr('سٹاف کے آئی ڈی کارڈز پرنٹ کریں', 'Print Staff ID Cards')}")
         staff_df = pd.read_sql("SELECT * FROM staff", conn)
         if not staff_df.empty:
