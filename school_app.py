@@ -252,8 +252,8 @@ def init_db():
     cursor = conn.cursor()
 
 # ================= 5. سکول کی سیٹنگز اور لوگو (School Settings & Logo) =================
-        cursor.execute("SELECT * FROM settings")
-        settings_data = {row[0]: row[1] if row[1] is not None else row[2] for row in cursor.fetchall()}
+    cursor.execute("SELECT * FROM settings")
+    settings_data = {row[0]: row[1] if row[1] is not None else row[2] for row in cursor.fetchall()}
 
 school_name = settings_data.get("school_name", "Dar Ul Khadija School System")
 school_address = settings_data.get("school_address", "Sillanwali, Sargodha, Punjab")
