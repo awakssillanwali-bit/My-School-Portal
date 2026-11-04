@@ -330,7 +330,10 @@ with st.sidebar:
     <div style='display: flex; align-items: center; gap: 10px; margin-bottom: 20px;'>
         {logo_base64_html}
         <div>
-            <h3 style='margin: 0; color: #1a4f8b; font-size: 16px; font-weight: 800; font-family: "Arial", sans-serif; line-height: 1.2;'>{school_name.upper()}</h3>
+    try:
+        safe_school_name = school_name.upper()
+    except NameError:
+        safe_school_name = "DAR UL KHADIJA SCHOOL SYSTEM"
             <p style='margin: 0; font-size: 11px; color: #777;'>School System</p>
         </div>
     </div>
