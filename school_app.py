@@ -849,7 +849,7 @@ elif sub_choice in ["تلاش (Search)", "Search"]:
                 df = pd.read_sql(f"SELECT * FROM students WHERE class='{search_class}' AND status='Active'", conn)
                 st.dataframe(df, use_container_width=True)
 
-    elif sub_choice in ["پروفائل پرنٹ کریں", "Print Profile"]:
+elif sub_choice in ["پروفائل پرنٹ کریں", "Print Profile"]:
         st.markdown(f"### 🖨️ {tr('طالب علم کی پروفائل پرنٹ کریں', 'Print Student Profile')}")
         p_reg = st.text_input(tr("رجسٹریشن نمبر لکھیں", "Enter Registration No for Profile"))
         if p_reg:
@@ -886,7 +886,7 @@ elif sub_choice in ["تلاش (Search)", "Search"]:
             else:
                 st.warning(tr("اس رجسٹریشن نمبر کا کوئی ریکارڈ نہیں ملا۔", "No record found."))
 
-    elif sub_choice in ["سرٹیفکیٹس اور لیٹر", "Certificates"]:
+elif sub_choice in ["سرٹیفکیٹس اور لیٹر", "Certificates"]:
         st.markdown(f"### 📜 {tr('سرٹیفکیٹس اور لیٹرز', 'Certificates & Letters')}")
         c_reg = st.text_input(tr("رجسٹریشن نمبر لکھیں", "Enter Registration No for Certificate"))
         c_type = st.selectbox(tr("سرٹیفکیٹ کی قسم", "Certificate Type"), ["School Leaving Certificate", "Character Certificate", "Fee Clearance Letter"])
@@ -926,7 +926,7 @@ elif sub_choice in ["تلاش (Search)", "Search"]:
             else:
                 st.warning(tr("اس رجسٹریشن نمبر کا کوئی ریکارڈ نہیں ملا۔", "No record found."))
 
-    elif sub_choice in ["ایکسل سے امپورٹ", "Bulk Import"]:
+elif sub_choice in ["ایکسل سے امپورٹ", "Bulk Import"]:
         st.markdown(f"### 📥 {tr('ایکسل سے طلباء کا ڈیٹا امپورٹ کریں', 'Bulk Import Students from Excel')}")
         st.info(tr("نوٹ: ایکسل فائل میں کالمز کے نام یہ ہونے چاہئیں: Name, FatherName, Class, Phone, Address", "Note: Excel file must contain these columns: Name, FatherName, Class, Phone, Address"))
         
