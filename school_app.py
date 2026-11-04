@@ -474,8 +474,20 @@ with st.sidebar:
     
     # سیشن اور زبان کی سیٹنگز
     st.markdown(f"<div style='font-size:9px; font-weight:bold; color:#999; text-transform:uppercase;'>ACTIVE SESSION</div>", unsafe_allow_html=True)
-    st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#1a4f8b; margin-bottom:15px;'>🗓️ {active_session}</div>", unsafe_allow_html=True)
-    
+    # 🟢 کریش پروف سیشن چیک تاکہ NameError کبھی نہ آئے
+    try:
+        safe_active_session = active_session
+    except NameError:
+        try:
+            local_conn = get_db_connection()
+            local_cursor = local_conn.cursor()
+            local_cursor.execute("SELECT session_name FROM academic_sessions WHERE status='ACTIVE'")
+            row = local_cursor.fetchone()
+            safe_active_session = row[0] if row else "2026-27"
+        except:
+            safe_active_session = "2026-27"
+
+    st.markdown(f"<div style='font-size:13px; font-weight:bold; color:#1a4f8b; margin-bottom:15px;'>🗓️ {safe_active_session}</div>", unsafe_allow_html=True)   
     lang_sel = st.radio(f"🌐 LANGUAGE / زبان", ["English", "اردو"], index=0 if st.session_state.ui_lang=="English" else 1, horizontal=True)
     if lang_sel != st.session_state.ui_lang:
         st.session_state.ui_lang = lang_sel
