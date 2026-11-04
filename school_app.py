@@ -285,7 +285,14 @@ if 'current_role' not in st.session_state:
     st.session_state.current_role = ""
 if 'ref_id' not in st.session_state:
     st.session_state.ref_id = ""
+# اگر یوزر لاگ ان نہیں ہے تو سسٹم یہیں رک جائے گا اور لاگ ان سکرین دکھائے گا
+if not st.session_state.logged_in:
+    login_system()
+    st.stop()
 
+active_session = get_active_session()
+
+# ================= 7. مین مینو اور نیویگیشن (Sidebar & Navigation) =================
 def login_system():
     # لاگ ان پیج کا ڈیزائن
     st.markdown(f"""
