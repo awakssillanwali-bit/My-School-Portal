@@ -247,9 +247,16 @@ def init_db():
         cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES ('admin', 'admin123', 'Admin', 'N/A')")
 
     # 🟢 پروفیشنل مائیگریشن (Auto-Fixer): ایک ہی بار سارے
-    # ================= 5. سکول کی سیٹنگز اور لوگو (School Settings & Logo) =================
-       cursor.execute("SELECT * FROM settings")
-settings_data = {row[0]: row[1] if row[1] is not None else row[2] for row in cursor.fetchall()}
+    # پہلے ڈیٹا بیس کنکشن کو یقینی بنائیں تاکہ cursor کا ایرر نہ آئے
+conn = init_db()
+cursor = conn.cursor()
+
+# ================= 5. سکول کی سیٹنگز اور لوگو (School Settings & Logo) =================
+try:
+    cursor.execute("SELECT * FROM settings")
+    settings_data = {row[0]: row[1] if row[1] is not None else row[2] for row in cursor.fetchall()}
+except Exception as e:
+    settings_data = {}
 
 school_name = settings_data.get("school_name", "Dar Ul Khadija School System")
 school_address = settings_data.get("school_address", "Sillanwali, Sargodha, Punjab")
@@ -260,7 +267,6 @@ school_website = settings_data.get("school_website", "www.school.com")
 school_whatsapp = settings_data.get("school_whatsapp", "0300-0000000")
 school_facebook = settings_data.get("school_facebook", "facebook.com/school")
 today_date = datetime.date.today().strftime("%Y-%m-%d")
-
 # لوگو (Logo) لوڈ کرنا
 logo_data = settings_data.get("school_logo")
 logo_src_b64 = ""
