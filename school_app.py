@@ -248,8 +248,8 @@ def init_db():
 
     # 🟢 پروفیشنل مائیگریشن (Auto-Fixer): ایک ہی بار سارے
     # پہلے ڈیٹا بیس کنکشن کو یقینی بنائیں تاکہ cursor کا ایرر نہ آئے
-conn = init_db()
-cursor = conn.cursor()
+    conn = init_db()
+    cursor = conn.cursor()
 
 # ================= 5. سکول کی سیٹنگز اور لوگو (School Settings & Logo) =================
 try:
