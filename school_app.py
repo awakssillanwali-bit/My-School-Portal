@@ -619,7 +619,7 @@ if core_choice in ["ڈیش بورڈ", "Dashboard"]:
         except:
             c3.markdown(f"<div style='background:linear-gradient(135deg, #d69e2e, #ecc94b); color:white; padding:20px; border-radius:15px; text-align:center;'><h3>📋 {tr('آج کی حاضری', 'Today Attendance')}</h3><h1>0%</h1></div>", unsafe_allow_html=True)
             
-            # ================= 10. طلباء کا ریکارڈ (Students Management) =================
+# ================= 10. طلباء کا ریکارڈ (Students Management) =================
 elif core_choice in ["سٹوڈنٹ مینجمنٹ", "Students Mgt"]:
     st.markdown(f"<h2 class='no-print'>👨‍🎓 {tr('طلباء کا ریکارڈ (Students Mgt)', 'Students Management')} - {sub_choice}</h2>", unsafe_allow_html=True)
 
@@ -849,7 +849,7 @@ elif sub_choice in ["تلاش (Search)", "Search"]:
                 df = pd.read_sql(f"SELECT * FROM students WHERE class='{search_class}' AND status='Active'", conn)
                 st.dataframe(df, use_container_width=True)
 
-elif sub_choice in ["پروفائل پرنٹ کریں", "Print Profile"]:
+    elif sub_choice in ["پروفائل پرنٹ کریں", "Print Profile"]:
         st.markdown(f"### 🖨️ {tr('طالب علم کی پروفائل پرنٹ کریں', 'Print Student Profile')}")
         p_reg = st.text_input(tr("رجسٹریشن نمبر لکھیں", "Enter Registration No for Profile"))
         if p_reg:
@@ -886,23 +886,7 @@ elif sub_choice in ["پروفائل پرنٹ کریں", "Print Profile"]:
             else:
                 st.warning(tr("اس رجسٹریشن نمبر کا کوئی ریکارڈ نہیں ملا۔", "No record found."))
 
-elif sub_choice in ["سرٹیفکیٹس اور لیٹر", "Certificates"]:
-        st.markdown(f"### 📜 {tr('سرٹیفکیٹس اور لیٹرز', 'Certificates & Letters')}")
-        c_reg = st.text_input(tr("رجسٹریشن نمبر لکھیں", "Enter Registration No for Certificate"))
-        c_type = st.selectbox(tr("سرٹیفکیٹ کی قسم", "Certificate Type"), ["School Leaving Certificate", "Character Certificate", "Fee Clearance Letter"])
-        
-        if c_reg:
-            df_c = pd.read_sql(f"SELECT * FROM students WHERE reg_id='{c_reg}'", conn)
-            if not df_c.empty:
-                r = df_c.iloc[0]
-                n_val = get_disp_val(r.get('name'), r.get('name_en'))
-                fn_val = get_disp_val(r.get('fname'), r.get('fname_en'))
-                
-                content = f"This is to certify that <b>{n_val}</b> {get_relation_card_label(r.get('gender'), r.get('g_type'))} <b>{fn_val}</b> is/was a bonafide student of this school in Class {r.get('class')}."
-                
-                if c_type == "School Leaving Certificate":
-                    content += " The student has paid all dues and is leaving the school with our best wishes."
-elif sub_choice in ["سرٹیفکیٹس اور لیٹر", "Certificates"]:
+    elif sub_choice in ["سرٹیفکیٹس اور لیٹر", "Certificates"]:
         st.markdown(f"### 📜 {tr('سرٹیفکیٹس اور لیٹرز', 'Certificates & Letters')}")
         c_reg = st.text_input(tr("رجسٹریشن نمبر لکھیں", "Enter Registration No for Certificate"))
         c_type = st.selectbox(tr("سرٹیفکیٹ کی قسم", "Certificate Type"), ["School Leaving Certificate", "Character Certificate", "Fee Clearance Letter"])
@@ -942,7 +926,7 @@ elif sub_choice in ["سرٹیفکیٹس اور لیٹر", "Certificates"]:
             else:
                 st.warning(tr("اس رجسٹریشن نمبر کا کوئی ریکارڈ نہیں ملا۔", "No record found."))
 
-elif sub_choice in ["ایکسل سے امپورٹ", "Bulk Import"]:
+    elif sub_choice in ["ایکسل سے امپورٹ", "Bulk Import"]:
         st.markdown(f"### 📥 {tr('ایکسل سے طلباء کا ڈیٹا امپورٹ کریں', 'Bulk Import Students from Excel')}")
         st.info(tr("نوٹ: ایکسل فائل میں کالمز کے نام یہ ہونے چاہئیں: Name, FatherName, Class, Phone, Address", "Note: Excel file must contain these columns: Name, FatherName, Class, Phone, Address"))
         
@@ -983,7 +967,8 @@ elif sub_choice in ["ایکسل سے امپورٹ", "Bulk Import"]:
                     st.success(f"✅ {success_count} {tr('طلباء کا ڈیٹا کامیابی سے امپورٹ ہو گیا!', 'students imported successfully!')}")
             except Exception as e:
                 st.error(f"Error: {e}")
-                # ================= 11. سٹاف کا ریکارڈ (Staff Management) =================
+            
+# ================= 11. سٹاف کا ریکارڈ (Staff Management) =================
 elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
     st.markdown(f"<h2 class='no-print'>👨‍🏫 {tr('سٹاف کا ریکارڈ (Staff Mgt)', 'Staff Management')} - {sub_choice}</h2>", unsafe_allow_html=True)
     
@@ -1200,7 +1185,7 @@ elif sub_choice in ["ریکارڈ / ایڈٹ", "Edit/Search Staff"]:
         else:
             st.info(tr("کوئی سٹاف موجود نہیں ہے۔", "No staff record available."))
 
-elif sub_choice in ["آئی ڈی کارڈز پرنٹ", "Print ID Cards"]:
+    elif sub_choice in ["آئی ڈی کارڈز پرنٹ", "Print ID Cards"]:
         st.markdown(f"### 🪪 {tr('سٹاف کے آئی ڈی کارڈز پرنٹ کریں', 'Print Staff ID Cards')}")
         staff_df = pd.read_sql("SELECT * FROM staff", conn)
         if not staff_df.empty:
@@ -1237,6 +1222,8 @@ elif sub_choice in ["آئی ڈی کارڈز پرنٹ", "Print ID Cards"]:
                 print_button_js(html_container, tr("آئی ڈی کارڈز پرنٹ کریں", "Print ID Cards"))
         else:
             st.info(tr("پرنٹ کرنے کے لیے کوئی سٹاف موجود نہیں ہے۔", "No staff available to print."))
+
+                
             # ================= 12. حاضری کا ریکارڈ (Attendance Management) =================
 elif core_choice in ["حاضری", "Attendance"]:
     st.markdown(f"<h2 class='no-print'>📋 {tr('حاضری مینجمنٹ (Attendance)', 'Attendance Mgt')} - {sub_choice}</h2>", unsafe_allow_html=True)
@@ -1339,6 +1326,7 @@ elif sub_choice in ["ماہانہ رپورٹ", "Monthly Report"]:
                 st.dataframe(res_df, use_container_width=True)
             else:
                 st.info(tr("اس مہینے کا کوئی ریکارڈ نہیں ملا۔", "No records found for this month."))
+                
                 # ================= 13. فیس اور تنخواہ (Fee & Salary Management) =================
 elif core_choice in ["فیس اور تنخواہ", "Fee & Salary"]:
     st.markdown(f"<h2 class='no-print'>💵 {tr('فیس اور تنخواہ (Fee & Salary)', 'Fee & Salary Mgt')} - {sub_choice}</h2>", unsafe_allow_html=True)
@@ -1484,6 +1472,7 @@ elif sub_choice in ["سلپ پرنٹ کریں", "Print Slips"]:
                 st.dataframe(df_srch, use_container_width=True)
             else:
                 st.warning(tr("کوئی ریکارڈ نہیں ملا۔", "No record found."))
+                
                 # ================= 14. اکاؤنٹس اور لیجر (Accounts & Ledger) =================
 elif core_choice in ["اکاؤنٹس (لیجر)", "Accounts"]:
     st.markdown(f"<h2 class='no-print'>💲 {tr('اکاؤنٹس اور لیجر (Accounts)', 'Accounts & Ledger')} - {sub_choice}</h2>", unsafe_allow_html=True)
@@ -1611,6 +1600,7 @@ elif sub_choice in ["اکاؤنٹ ہیڈز", "Account Heads"]:
             st.dataframe(df_heads, use_container_width=True)
         else:
             st.info(tr("کوئی اکاؤنٹ ہیڈ موجود نہیں ہے۔", "No account heads found."))
+            
             # ================= 15. تعلیمی ریکارڈ (Academics & Exams) =================
 elif core_choice in ["تعلیمی ریکارڈ", "Academics"]:
     st.markdown(f"<h2 class='no-print'>📚 {tr('تعلیمی ریکارڈ (Academics)', 'Academics Mgt')} - {sub_choice}</h2>", unsafe_allow_html=True)
@@ -1852,6 +1842,7 @@ elif sub_choice in ["رزلٹ کارڈز", "Result Cards"]:
                 print_button_js(html_res, tr("رزلٹ کارڈ پرنٹ کریں", "Print Result Card"))
             else:
                 st.warning(tr("اس رجسٹریشن نمبر کا کوئی رزلٹ نہیں ملا۔", "No result found for this Reg No."))
+                
                 # ================= 16. لائبریری (Library Management) =================
 elif core_choice in ["لائبریری", "Library"]:
     st.markdown(f"<h2 class='no-print'>📖 {tr('لائبریری مینجمنٹ (Library)', 'Library Mgt')} - {sub_choice}</h2>", unsafe_allow_html=True)
@@ -1996,6 +1987,7 @@ elif sub_choice in ["وزیٹر ہسٹری", "Visitor History"]:
         df_hist = pd.read_sql("SELECT * FROM visitors ORDER BY date DESC, time_in DESC", conn)
         if not df_hist.empty: st.dataframe(df_hist, use_container_width=True)
         else: st.info(tr("کوئی ہسٹری موجود نہیں۔", "No history found."))
+        
         # ================= 19. ٹرانسپورٹ اور جی پی ایس (Transport & GPS) =================
 elif core_choice in ["ٹرانسپورٹ", "Transport"]:
     st.markdown(f"<h2 class='no-print'>🚌 {tr('ٹرانسپورٹ اور روٹس (Transport)', 'Transport Mgt')} - {sub_choice}</h2>", unsafe_allow_html=True)
@@ -2098,6 +2090,7 @@ elif core_choice in ["ہیلپ ڈیسک", "Helpdesk"]:
                         st.success(tr("✅ آپ کی شکایت کامیابی سے درج کر لی گئی ہے!", "Your complaint has been registered successfully!"))
                     except Exception as e: st.error(f"Error: {e}")
                 else: st.error(tr("⚠️ موضوع اور تفصیل لکھنا لازمی ہے۔", "Subject and details are required."))
+                
                 # ================= 21. نوٹس بورڈ (Notice Board) =================
 elif core_choice in ["نوٹس بورڈ", "Notice Board"]:
     st.markdown(f"<h2 class='no-print'>📢 {tr('سکول نوٹس بورڈ', 'School Notice Board')} - {sub_choice}</h2>", unsafe_allow_html=True)
