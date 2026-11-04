@@ -330,7 +330,17 @@ def login_system():
                             st.error(tr("❌ غلط یوزر نیم یا پاسورڈ۔ براہ کرم دوبارہ کوشش کریں۔", "❌ Incorrect username or password. Please try again."))
                     except Exception as e:
                         st.error(f"Database Error: {e}")
+def get_active_session():
+    try:
+        local_conn = get_db_connection()
+        local_cursor = local_conn.cursor()
+        local_cursor.execute("SELECT session_name FROM academic_sessions WHERE status='ACTIVE'")
+        row = local_cursor.fetchone()
+        return row[0] if row else "2026-27"
+    except:
+        return "2026-27"
 
+active_session = get_active_session()
     # ================= 7. مین مینو اور نیویگیشن (Sidebar & Navigation) =================
 logo_base64_html = f'<img src="{logo_src_b64}" style="max-width: 80px; max-height: 80px; border-radius: 50%; border: 2px solid #1a4f8b; background: white; padding: 3px;">' if logo_src_b64 else '<div style="font-size:40px;">🏫</div>'
 
