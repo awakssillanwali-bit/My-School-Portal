@@ -2703,7 +2703,7 @@ elif core_choice == "Attendance":
             else:
                 st.warning(tr("اس تاریخ کی سٹاف کی کوئی حاضری محفوظ نہیں ہے۔", "No staff attendance saved for this date."))
 
-    elif core_choice in ["چھٹی کی درخواستیں", "Leave Requests"]:
+elif core_choice in ["چھٹی کی درخواستیں", "Leave Requests"]:
     st.markdown(f"<h2 class='no-print'>📝 {tr('چھٹی کی درخواستیں', 'Leave Requests')}</h2>", unsafe_allow_html=True)
     
     # 🟢 یہاں کوئی فالتو try نہیں ہے، سیدھا کریش پروف کوڈ شروع ہو رہا ہے
