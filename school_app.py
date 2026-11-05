@@ -2703,33 +2703,22 @@ elif core_choice == "Attendance":
             else:
                 st.warning(tr("اس تاریخ کی سٹاف کی کوئی حاضری محفوظ نہیں ہے۔", "No staff attendance saved for this date."))
 
-    # 🟢 چھٹی کی درخواستیں (ٹیچر اور ایڈمن کے لیے)
-    elif sub_choice in ["Leave Requests", "چھٹی کی درخواستیں"]:
-        st.markdown(f"### ✉️ {tr('طلباء کی چھٹی کی درخواستیں', 'Students Leave Requests')}")
-        st.info(tr("یہاں آپ والدین کی طرف سے آن لائن بھیجی گئی چھٹی کی درخواستیں دیکھ سکتے ہیں اور انہیں منظور (Approve) یا مسترد (Reject) کر سکتے ہیں۔ منظور کرنے پر حاضری شیٹ میں خودکار 'چھٹی' لگ جائے گی۔", "Here you can view, approve, or reject leave requests sent by parents. Approving will automatically mark 'Leave' in the attendance sheet."))
-        
-        try:
-            # 🟢 ڈیٹا بیس فکسر
-            cursor.execute("CREATE TABLE IF NOT EXISTS leave_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, reg_id TEXT, date TEXT, reason TEXT, status TEXT DEFAULT 'Pending')")
-            try:
-                cursor.execute("ALTER TABLE leave_requests ADD COLUMN admin_remarks TEXT")
-            except: pass
-            conn.commit() 
-            # ڈیٹا بیس سے درخواستیں لانا
-           # 🟢 کریش پروف چھٹی کی درخواستوں کا سسٹم (Crash-proof Leave Requests)
-        # نوٹ: یہاں اوپر یا نیچے کوئی فالتو try: یا except: نہیں ہونا چاہیے
+    elif core_choice in ["چھٹی کی درخواستیں", "Leave Requests"]:
+    st.markdown(f"<h2 class='no-print'>📝 {tr('چھٹی کی درخواستیں', 'Leave Requests')}</h2>", unsafe_allow_html=True)
+    
+    # 🟢 یہاں کوئی فالتو try نہیں ہے، سیدھا کریش پروف کوڈ شروع ہو رہا ہے
+    try:
+        local_conn = get_db_connection()
+        leave_q = "SELECT lr.id, lr.reg_id, s.name, s.name_en, s.class, s.section, lr.date, lr.reason, lr.status, lr.admin_remarks FROM leave_requests lr JOIN students s ON lr.reg_id = s.reg_id ORDER BY lr.id DESC"
+        requests_df = pd.read_sql(leave_q, local_conn)
+    except Exception:
         try:
             local_conn = get_db_connection()
-            leave_q = "SELECT lr.id, lr.reg_id, s.name, s.name_en, s.class, s.section, lr.date, lr.reason, lr.status, lr.admin_remarks FROM leave_requests lr JOIN students s ON lr.reg_id = s.reg_id ORDER BY lr.id DESC"
-            requests_df = pd.read_sql(leave_q, local_conn)
+            leave_q_fallback = "SELECT lr.id, lr.reg_id, s.name, s.class, lr.date, lr.reason, lr.status, lr.admin_remarks FROM leave_requests lr JOIN students s ON lr.reg_id = s.reg_id ORDER BY lr.id DESC"
+            requests_df = pd.read_sql(leave_q_fallback, local_conn)
         except Exception:
-        try:
-                local_conn = get_db_connection()
-                leave_q_fallback = "SELECT lr.id, lr.reg_id, s.name, s.class, lr.date, lr.reason, lr.status, lr.admin_remarks FROM leave_requests lr JOIN students s ON lr.reg_id = s.reg_id ORDER BY lr.id DESC"
-                requests_df = pd.read_sql(leave_q_fallback, local_conn)
-         except Exception:
-                import pandas as pd
-                requests_df = pd.DataFrame()
+            import pandas as pd
+            requests_df = pd.DataFrame()
             
             if not req_df.empty:
                 pending_reqs = req_df[req_df['status'] == 'Pending']
