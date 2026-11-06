@@ -569,11 +569,12 @@ Active Session {active_session}
     elif st.session_state.current_role == "Teacher": user_icon = "👨‍🏫"
     else: user_icon = "👤"
 
-    col_welcome, col_alerts = st.columns([1.1, 2.9])
+    # 🟢 بالکل تصویر کی طرح کالمز کی ترتیب
+    col_welcome, col_alerts = st.columns([1.2, 2.8])
 
     with col_welcome:
         welcome_html = f"""
-        <div style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); padding: 30px 20px; border-radius: 20px; border: 1px solid #a5d6a7; box-shadow: 0 6px 15px rgba(0,0,0,0.04); text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 280px; margin-bottom: 20px;">
+        <div style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); padding: 30px 20px; border-radius: 20px; border: 1px solid #a5d6a7; box-shadow: 0 6px 15px rgba(0,0,0,0.04); text-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 330px; margin-bottom: 20px;">
             <div style="font-size: 50px; background: white; width: 85px; height: 85px; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 8px rgba(0,0,0,0.08); border: 3px solid #81c784; margin-bottom: 15px;">
                 {user_icon}
             </div>
@@ -597,43 +598,35 @@ Active Session {active_session}
         
     with col_alerts:
         # 🟢 نیا فیچر: برتھ ڈے الرٹ (Birthday Alerts)
-        today_md = datetime.date.today().strftime("-%m-%d")
-        
-        # 🟢 کریش پروف سالگرہ (Birthday) سسٹم تاکہ ایپ کبھی بند نہ ہو
-    try:
-        # نیا کنکشن تاکہ کوئی مسئلہ نہ آئے
-        local_conn = get_db_connection()
-        today_md = datetime.date.today().strftime("%m-%d")
-        
-        # پہلی کوشش: سارے کالمز کے ساتھ
-        bday_students = pd.read_sql(f"SELECT name, name_en, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", local_conn)
-    except Exception:
         try:
-            # دوسری کوشش: صرف ضروری کالمز کے ساتھ
-            bday_students = pd.read_sql(f"SELECT name, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", local_conn)
+            local_conn = get_db_connection()
+            today_md = datetime.date.today().strftime("%m-%d")
+            bday_students = pd.read_sql(f"SELECT name, name_en, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", local_conn)
         except Exception:
-            # 🟢 اگر ڈیٹا بیس میں dob کالم موجود ہی نہیں ہے، تو کریش ہونے کے بجائے خالی لسٹ بن جائے گی
-            import pandas as pd
-            bday_students = pd.DataFrame()
+            try:
+                bday_students = pd.read_sql(f"SELECT name, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", local_conn)
+            except Exception:
+                import pandas as pd
+                bday_students = pd.DataFrame()
             
         try:
-            bday_staff = pd.read_sql(f"SELECT name, name_en, designation FROM staff WHERE dob LIKE '%{today_md}'", conn)
+            bday_staff = pd.read_sql(f"SELECT name, name_en, designation FROM staff WHERE dob LIKE '%{today_md}'", local_conn)
         except:
-            bday_staff = pd.read_sql(f"SELECT name, designation FROM staff WHERE dob LIKE '%{today_md}'", conn)
+            try:
+                bday_staff = pd.read_sql(f"SELECT name, designation FROM staff WHERE dob LIKE '%{today_md}'", local_conn)
+            except:
+                bday_staff = pd.DataFrame()
         
+        bday_html = ""
         if not bday_students.empty or not bday_staff.empty:
             bday_html = "<div style='background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); padding: 15px; border-radius: 12px; border: 2px solid #ff758c; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); margin-bottom: 15px; color: #d81b60;'>"
-            
-            # ٹائٹل زبان کے حساب سے
             bday_title = tr("🎂 آج ان کی سالگرہ ہے! (Happy Birthday)", "🎂 Happy Birthday! Today is their special day.")
             bday_html += f"<h4 style='margin:0 0 10px 0; display:flex; align-items:center; gap:8px;'>{bday_title}</h4><ul style='margin:0; padding-left:20px; font-size:14px; font-weight:bold;'>"
             
             for _, r in bday_students.iterrows():
-                # اگر انگلش نام موجود ہے اور انگلش زبان منتخب ہے
                 disp_name = str(r['name'])
                 if st.session_state.ui_lang == "English" and 'name_en' in r and pd.notna(r['name_en']) and str(r['name_en']).strip() not in ["", "None"]:
                     disp_name = str(r['name_en'])
-                    
                 stu_lbl = tr("طالب علم", "Student")
                 cls_lbl = tr("کلاس", "Class")
                 bday_html += f"<li>🎉 {disp_name} - {stu_lbl} ({cls_lbl} {r['class']} {r['section']})</li>"
@@ -642,13 +635,12 @@ Active Session {active_session}
                 disp_name = str(r['name'])
                 if st.session_state.ui_lang == "English" and 'name_en' in r and pd.notna(r['name_en']) and str(r['name_en']).strip() not in ["", "None"]:
                     disp_name = str(r['name_en'])
-                    
                 stf_lbl = tr("سٹاف", "Staff")
                 bday_html += f"<li>🎉 {disp_name} - {stf_lbl} ({r['designation']})</li>"
                 
             bday_html += "</ul></div>"
             st.markdown(bday_html, unsafe_allow_html=True)
-            st.balloons() # سکرین پر غبارے اڑیں گے
+            st.balloons()
             
         # فیس ڈیفالٹرز کا بلنکر الرٹ
         defaulters_html = ""
@@ -658,12 +650,10 @@ Active Session {active_session}
             defaulters_count = cursor.fetchone()[0]
             
             if defaulters_count > 0:
-                # زبان کے حساب سے بلنکنگ میسج
                 alert_text = tr(
                     f"🚨 الرٹ: {defaulters_count} طلباء کی فیس کی مقررہ تاریخ گزر چکی ہے! براہ کرم فیس کا سیکشن چیک کریں۔", 
                     f"🚨 ALERT: The fee due date for {defaulters_count} student(s) has passed! Please check the Fees section."
                 )
-                
                 defaulters_html = f"""
                 <style>
                 @keyframes blinker {{ 50% {{ opacity: 0.2; }} }}
@@ -682,15 +672,28 @@ Active Session {active_session}
         if defaulters_html:
             st.markdown(defaulters_html, unsafe_allow_html=True)
             
-        # سکول انفو کارڈ
+        # سکول انفو کارڈ (دائیں کالم میں، تصویر کے مطابق)
         st.markdown(f"""
-        <div style="background-color: #ffffff; padding: 25px; border-radius: 20px; border: 1px solid #edf2f7; box-shadow: 0 4px 6px rgba(0,0,0,0.02); display: flex; flex-direction: column; justify-content: center; height: { '190px' if defaulters_html else '100%' };">
-            <h4 style="margin: 0 0 15px 0; color: #2d3748; font-weight:800; display:flex; align-items:center; gap:8px;">🏫 School Information</h4>
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; font-size: 13px; color: #4a5568;">
-                <div><span style="color:#3182ce; font-weight:bold;">📍 Address:</span> <span dir="ltr">{school_address}</span></div>
-                <div><span style="color:#38a169; font-weight:bold;">📞 Phone:</span> <span dir="ltr">{school_phone}</span></div>
-                <div><span style="color:#d69e2e; font-weight:bold;">📝 Reg No:</span> <span dir="ltr">{school_reg}</span></div>
-                <div><span style="color:#e53e3e; font-weight:bold;">📧 Email:</span> <span dir="ltr">{school_email}</span></div>
+        <div style="background-color: #ffffff; padding: 25px; border-radius: 20px; border: 1px solid #edf2f7; box-shadow: 0 4px 6px rgba(0,0,0,0.02); display: flex; flex-direction: column; justify-content: center; min-height: 330px; margin-bottom: 20px;">
+            <h2 style="color: #1a4f8b; margin-top: 0; border-bottom: 2px solid #f0f2f6; padding-bottom: 15px; font-family: 'Arial', sans-serif;">🏫 School Information</h2>
+            
+            <div style="display: flex; flex-wrap: wrap; margin-top: 25px; font-size: 15px;">
+                <div style="width: 50%; margin-bottom: 20px;">
+                    <span style="color: #d32f2f; font-weight: 900;">📍 Address: </span> 
+                    <span style="color: #555;">{school_address}</span>
+                </div>
+                <div style="width: 50%; margin-bottom: 20px;">
+                    <span style="color: #d32f2f; font-weight: 900;">📞 Phone: </span> 
+                    <span style="color: #555;">{school_phone}</span>
+                </div>
+                <div style="width: 50%; margin-bottom: 20px;">
+                    <span style="color: #d32f2f; font-weight: 900;">📄 Reg No: </span> 
+                    <span style="color: #555;">{school_reg}</span>
+                </div>
+                <div style="width: 50%; margin-bottom: 20px;">
+                    <span style="color: #d32f2f; font-weight: 900;">📧 Email: </span> 
+                    <span style="color: #555;">{school_email}</span>
+                </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -728,7 +731,6 @@ Active Session {active_session}
     try: acc_df = pd.read_sql("SELECT * FROM accounts", conn)
     except: acc_df = pd.DataFrame()
         
-    # بلکل درست کیلکولیشن (سنٹیکس ایرر حل ہو گیا ہے)
     total_income = int(acc_df[acc_df["type"].isin(["آمدنی", "Income"])]["amount"].sum()) if not acc_df.empty else 0
     total_expense = int(acc_df[acc_df["type"].isin(["خرچ", "Expense"])]["amount"].sum()) if not acc_df.empty else 0
     curr_balance = total_income - total_expense
