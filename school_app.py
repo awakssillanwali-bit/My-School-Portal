@@ -311,7 +311,7 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (id INTEGER PRIMARY KEY 
 cursor.execute('''CREATE TABLE IF NOT EXISTS academic_sessions (session_name TEXT PRIMARY KEY, status TEXT)''')
 cursor.execute("SELECT COUNT(*) FROM academic_sessions")
 if cursor.fetchone()[0] == 0:
-cursor.execute("INSERT INTO academic_sessions VALUES ('2026-27', 'ACTIVE')")
+   cursor.execute("INSERT INTO academic_sessions VALUES ('2026-27', 'ACTIVE')")
     # 🟢 نئے فیچرز (لائبریری، سیکیورٹی، انوینٹری، ہیلپ ڈیسک) کے ٹیبلز
 cursor.execute('''CREATE TABLE IF NOT EXISTS books (book_id TEXT PRIMARY KEY, title TEXT, author TEXT, category TEXT, total_qty INTEGER, available_qty INTEGER)''')
 cursor.execute('''CREATE TABLE IF NOT EXISTS book_issue (id INTEGER PRIMARY KEY AUTOINCREMENT, book_id TEXT, issued_to_type TEXT, reg_id TEXT, issue_date TEXT, due_date TEXT, return_date TEXT, status TEXT DEFAULT 'Issued', fine REAL DEFAULT 0)''')
