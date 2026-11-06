@@ -296,7 +296,7 @@ def init_db():
 
 # ایپ سٹارٹ ہوتے ہی سب سے پہلے ڈیٹا بیس ٹیبلز چیک کرے گا
 init_db()    
-    # 🟢 نیا ٹرانسپورٹ اور جی پی ایس ڈیٹا بیس
+# 🟢 نیا ٹرانسپورٹ اور جی پی ایس ڈیٹا بیس
     cursor.execute('''CREATE TABLE IF NOT EXISTS transport (vehicle_id TEXT PRIMARY KEY, type TEXT, driver_name TEXT, driver_phone TEXT, route_name TEXT, fare REAL, gps_device_id TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS transport_members (reg_id TEXT PRIMARY KEY, vehicle_id TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS live_locations (device_id TEXT PRIMARY KEY, lat REAL, lon REAL, last_updated TEXT, speed REAL)''')
