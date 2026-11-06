@@ -298,14 +298,14 @@ def init_db():
 init_db()    
 # 🟢 نیا ٹرانسپورٹ اور جی پی ایس ڈیٹا بیس
 cursor.execute('''CREATE TABLE IF NOT EXISTS transport (vehicle_id TEXT PRIMARY KEY, type TEXT, driver_name TEXT, driver_phone TEXT, route_name TEXT, fare REAL, gps_device_id TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS transport_members (reg_id TEXT PRIMARY KEY, vehicle_id TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS live_locations (device_id TEXT PRIMARY KEY, lat REAL, lon REAL, last_updated TEXT, speed REAL)''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS transport_members (reg_id TEXT PRIMARY KEY, vehicle_id TEXT)''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS live_locations (device_id TEXT PRIMARY KEY, lat REAL, lon REAL, last_updated TEXT, speed REAL)''')
     
-    # 🟢 نیا انوینٹری اور ہیلپ ڈیسک ڈیٹا بیس
-    cursor.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, item_name TEXT, category TEXT, total_qty INTEGER, used_qty INTEGER DEFAULT 0)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, sender_name TEXT, sender_type TEXT, reg_id TEXT, subject TEXT, details TEXT, status TEXT DEFAULT 'Pending', admin_reply TEXT)''')
+# 🟢 نیا انوینٹری اور ہیلپ ڈیسک ڈیٹا بیس
+cursor.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, item_name TEXT, category TEXT, total_qty INTEGER, used_qty INTEGER DEFAULT 0)''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, sender_name TEXT, sender_type TEXT, reg_id TEXT, subject TEXT, details TEXT, status TEXT DEFAULT 'Pending', admin_reply TEXT)''')
 
-    # Academic Sessions Table (یہ لائن پہلے سے موجود ہوگی، اسے ایسے ہی رہنے دیں)
+# Academic Sessions Table (یہ لائن پہلے سے موجود ہوگی، اسے ایسے ہی رہنے دیں)
     
     # Academic Sessions Table
     cursor.execute('''CREATE TABLE IF NOT EXISTS academic_sessions (session_name TEXT PRIMARY KEY, status TEXT)''')
