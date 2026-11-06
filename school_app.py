@@ -308,16 +308,16 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (id INTEGER PRIMARY KEY 
 # Academic Sessions Table (یہ لائن پہلے سے موجود ہوگی، اسے ایسے ہی رہنے دیں)
     
     # Academic Sessions Table
-    cursor.execute('''CREATE TABLE IF NOT EXISTS academic_sessions (session_name TEXT PRIMARY KEY, status TEXT)''')
-    cursor.execute("SELECT COUNT(*) FROM academic_sessions")
+cursor.execute('''CREATE TABLE IF NOT EXISTS academic_sessions (session_name TEXT PRIMARY KEY, status TEXT)''')
+cursor.execute("SELECT COUNT(*) FROM academic_sessions")
     if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO academic_sessions VALUES ('2026-27', 'ACTIVE')")
     # 🟢 نئے فیچرز (لائبریری، سیکیورٹی، انوینٹری، ہیلپ ڈیسک) کے ٹیبلز
-    cursor.execute('''CREATE TABLE IF NOT EXISTS books (book_id TEXT PRIMARY KEY, title TEXT, author TEXT, category TEXT, total_qty INTEGER, available_qty INTEGER)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS book_issue (id INTEGER PRIMARY KEY AUTOINCREMENT, book_id TEXT, issued_to_type TEXT, reg_id TEXT, issue_date TEXT, due_date TEXT, return_date TEXT, status TEXT DEFAULT 'Issued', fine REAL DEFAULT 0)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS visitors (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, time_in TEXT, time_out TEXT, name TEXT, phone TEXT, purpose TEXT, to_meet TEXT, status TEXT DEFAULT 'Inside')''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, item_name TEXT, category TEXT, total_qty INTEGER, used_qty INTEGER DEFAULT 0)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, sender_name TEXT, sender_type TEXT, reg_id TEXT, subject TEXT, details TEXT, status TEXT DEFAULT 'Pending', admin_reply TEXT)''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS books (book_id TEXT PRIMARY KEY, title TEXT, author TEXT, category TEXT, total_qty INTEGER, available_qty INTEGER)''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS book_issue (id INTEGER PRIMARY KEY AUTOINCREMENT, book_id TEXT, issued_to_type TEXT, reg_id TEXT, issue_date TEXT, due_date TEXT, return_date TEXT, status TEXT DEFAULT 'Issued', fine REAL DEFAULT 0)''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS visitors (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, time_in TEXT, time_out TEXT, name TEXT, phone TEXT, purpose TEXT, to_meet TEXT, status TEXT DEFAULT 'Inside')''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, item_name TEXT, category TEXT, total_qty INTEGER, used_qty INTEGER DEFAULT 0)''')
+cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, sender_name TEXT, sender_type TEXT, reg_id TEXT, subject TEXT, details TEXT, status TEXT DEFAULT 'Pending', admin_reply TEXT)''')
    
     conn.commit()
     return conn
