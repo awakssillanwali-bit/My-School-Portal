@@ -321,8 +321,8 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (id INTEGER PRIMARY KEY 
    
 conn.commit()
 return conn
-    conn = init_db()
-    cursor = conn.cursor()
+conn = init_db()
+cursor = conn.cursor()
 
 def get_active_session():
     cursor.execute("SELECT session_name FROM academic_sessions WHERE status='ACTIVE'")
