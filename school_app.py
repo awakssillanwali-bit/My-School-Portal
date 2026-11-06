@@ -3,7 +3,6 @@ import streamlit.components.v1 as components
 import google.generativeai as genai
 import pandas as pd
 import datetime
-import sqlite3
 import base64
 import os
 import io
@@ -217,40 +216,86 @@ def print_button_js(html_content, btn_text, landscape=False):
     """
     components.html(js, height=60)
 
-# ----------------- ڈیٹا بیس اور سیشن کنکشن (Session Routing) -----------------
-SESSION_TRACKER_FILE = "active_session_db.txt"
+import os
+import psycopg2
+from psycopg2 import errors
 
-def get_current_db_filename():
-    if os.path.exists(SESSION_TRACKER_FILE):
-        with open(SESSION_TRACKER_FILE, "r") as f:
-            return f.read().strip()
-    return 'school_system.db'
-
-DB_FILE = get_current_db_filename()
-
-def init_db():
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, blob_value BLOB)''')
-    cursor.execute("SELECT value FROM settings WHERE key='password'")
-    if not cursor.fetchone():
-        cursor.execute("INSERT INTO settings (key, value) VALUES ('password', '1234')")
+# ----------------- کلاؤڈ ڈیٹا بیس اور سمارٹ ریپر (Smart Wrapper) -----------------
+# یہ کلاؤڈ کنکشن آپ کے پرانے کوڈ کو چھیڑے بغیر اسے Neon کلاؤڈ پر چلائے گا
+class PostgresCursorWrapper:
+    def __init__(self, cursor):
+        self.cursor = cursor
         
-    cursor.execute('''CREATE TABLE IF NOT EXISTS students (reg_id TEXT PRIMARY KEY, name TEXT, fname TEXT, dob TEXT, blood TEXT, class TEXT, section TEXT, bform TEXT, phone TEXT, address TEXT, prev_school TEXT, prev_class TEXT, medical TEXT, monthly_fee REAL, adm_date TEXT, arrears REAL, advance_fee REAL DEFAULT 0, discount REAL DEFAULT 0)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS staff (staff_id TEXT PRIMARY KEY, name TEXT, fname TEXT, cnic TEXT, dob TEXT, designation TEXT, phone TEXT, address TEXT, joining_date TEXT, salary REAL, advance_salary REAL DEFAULT 0)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS attendance (date TEXT, type TEXT, person_id TEXT, status TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS fees (date TEXT, reg_id TEXT, month TEXT, tuition REAL, arrears_col REAL, total REAL, status TEXT DEFAULT 'Paid', due_date TEXT, invoice_no TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS salary_records (date TEXT, staff_id TEXT, month TEXT, amount REAL, remarks TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS accounts (date TEXT, type TEXT, description TEXT, amount REAL, head_name TEXT, voucher_no TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS account_heads (head_name TEXT PRIMARY KEY, head_type TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS subjects (subject_name TEXT PRIMARY KEY)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS timetable (id INTEGER PRIMARY KEY AUTOINCREMENT, class TEXT, section TEXT, day TEXT, period TEXT, subject TEXT, teacher_id TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS lesson_plan (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, class TEXT, section TEXT, subject TEXT, teacher_id TEXT, topic TEXT, status TEXT, plan_type TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS exams (exam_name TEXT PRIMARY KEY, start_date TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS exam_marks (id INTEGER PRIMARY KEY AUTOINCREMENT, exam_name TEXT, reg_id TEXT, subject TEXT, total_marks REAL, obtained_marks REAL)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS notices (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, audience TEXT, title TEXT, details TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS notices (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, audience TEXT, title TEXT, details TEXT)''')
+    def execute(self, query, params=None):
+        # پرانے SQLite کے '?' کو نئے Postgres کے '%s' میں آٹو کنورٹ کرنا
+        if '?' in query:
+            query = query.replace('?', '%s')
+        if params:
+            return self.cursor.execute(query, params)
+        return self.cursor.execute(query)
+        
+    def fetchone(self): return self.cursor.fetchone()
+    def fetchall(self): return self.cursor.fetchall()
+    def fetchmany(self, size=None): return self.cursor.fetchmany(size)
+    def close(self): self.cursor.close()
     
+    @property
+    def description(self): return self.cursor.description
+    @property
+    def rowcount(self): return self.cursor.rowcount
+
+class PostgresConnWrapper:
+    def __init__(self, conn):
+        self.conn = conn
+    def cursor(self): return PostgresCursorWrapper(self.conn.cursor())
+    def commit(self): self.conn.commit()
+    def rollback(self): self.conn.rollback()
+    def close(self): self.conn.close()
+
+def get_db_connection():
+    # آپ کا لائیو Neon Cloud Database Connection
+    DB_URL = "postgresql://neondb_owner:npg_foZpA5qyrRB6@ep-frosty-pine-b3xhf87r-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
+    conn = psycopg2.connect(DB_URL)
+    return PostgresConnWrapper(conn)
+
+# ----------------- ڈیٹا بیس شروع کرنے کا نیا فنکشن (Cloud Init) -----------------
+def init_db():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # SQLite کے BLOB کو Postgres کے BYTEA میں بدل دیا ہے
+        cursor.execute('''CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, blob_value BYTEA)''')
+        
+        cursor.execute("SELECT value FROM settings WHERE key='password'")
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO settings (key, value) VALUES ('password', '1234')")
+            
+        cursor.execute('''CREATE TABLE IF NOT EXISTS students (reg_id TEXT PRIMARY KEY, name TEXT, fname TEXT, dob TEXT, blood TEXT, class TEXT, section TEXT, bform TEXT, phone TEXT, address TEXT, prev_school TEXT, prev_class TEXT, medical TEXT, monthly_fee REAL, adm_date TEXT, arrears REAL, advance_fee REAL DEFAULT 0, discount REAL DEFAULT 0)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS staff (staff_id TEXT PRIMARY KEY, name TEXT, fname TEXT, cnic TEXT, dob TEXT, designation TEXT, phone TEXT, address TEXT, joining_date TEXT, salary REAL, advance_salary REAL DEFAULT 0)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS attendance (date TEXT, type TEXT, person_id TEXT, status TEXT)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS fees (date TEXT, reg_id TEXT, month TEXT, tuition REAL, arrears_col REAL, total REAL, status TEXT DEFAULT 'Paid', due_date TEXT, invoice_no TEXT)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS salary_records (date TEXT, staff_id TEXT, month TEXT, amount REAL, remarks TEXT)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS accounts (date TEXT, type TEXT, description TEXT, amount REAL, head_name TEXT, voucher_no TEXT)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS account_heads (head_name TEXT PRIMARY KEY, head_type TEXT)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS subjects (subject_name TEXT PRIMARY KEY)''')
+        
+        # INTEGER PRIMARY KEY AUTOINCREMENT کو SERIAL PRIMARY KEY سے بدل دیا ہے
+        cursor.execute('''CREATE TABLE IF NOT EXISTS timetable (id SERIAL PRIMARY KEY, class TEXT, section TEXT, day TEXT, period TEXT, subject TEXT, teacher_id TEXT)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS lesson_plan (id SERIAL PRIMARY KEY, date TEXT, class TEXT, section TEXT, subject TEXT, teacher_id TEXT, topic TEXT, status TEXT, plan_type TEXT)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS exams (exam_name TEXT PRIMARY KEY, start_date TEXT)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS exam_marks (id SERIAL PRIMARY KEY, exam_name TEXT, reg_id TEXT, subject TEXT, total_marks REAL, obtained_marks REAL)''')
+        
+        # notices کا ٹیبل آپ کے پرانے کوڈ میں دو بار تھا، میں نے ایک بار کر دیا ہے
+        cursor.execute('''CREATE TABLE IF NOT EXISTS notices (id SERIAL PRIMARY KEY, date TEXT, audience TEXT, title TEXT, details TEXT)''')
+        
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Database Init Error: {e}")
+
+# ایپ سٹارٹ ہوتے ہی سب سے پہلے ڈیٹا بیس ٹیبلز چیک کرے گا
+init_db()    
     # 🟢 نیا ٹرانسپورٹ اور جی پی ایس ڈیٹا بیس
     cursor.execute('''CREATE TABLE IF NOT EXISTS transport (vehicle_id TEXT PRIMARY KEY, type TEXT, driver_name TEXT, driver_phone TEXT, route_name TEXT, fare REAL, gps_device_id TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS transport_members (reg_id TEXT PRIMARY KEY, vehicle_id TEXT)''')
