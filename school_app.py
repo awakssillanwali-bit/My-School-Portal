@@ -674,30 +674,28 @@ Active Session {active_session}
             
         # سکول انفو کارڈ (دائیں کالم میں، تصویر کے مطابق)
         st.markdown(f"""
-        <div style="background-color: #ffffff; padding: 25px; border-radius: 20px; border: 1px solid #edf2f7; box-shadow: 0 4px 6px rgba(0,0,0,0.02); display: flex; flex-direction: column; justify-content: center; min-height: 330px; margin-bottom: 20px;">
-            <h2 style="color: #1a4f8b; margin-top: 0; border-bottom: 2px solid #f0f2f6; padding-bottom: 15px; font-family: 'Arial', sans-serif;">🏫 School Information</h2>
-            
-            <div style="display: flex; flex-wrap: wrap; margin-top: 25px; font-size: 15px;">
-                <div style="width: 50%; margin-bottom: 20px;">
-                    <span style="color: #d32f2f; font-weight: 900;">📍 Address: </span> 
-                    <span style="color: #555;">{school_address}</span>
-                </div>
-                <div style="width: 50%; margin-bottom: 20px;">
-                    <span style="color: #d32f2f; font-weight: 900;">📞 Phone: </span> 
-                    <span style="color: #555;">{school_phone}</span>
-                </div>
-                <div style="width: 50%; margin-bottom: 20px;">
-                    <span style="color: #d32f2f; font-weight: 900;">📄 Reg No: </span> 
-                    <span style="color: #555;">{school_reg}</span>
-                </div>
-                <div style="width: 50%; margin-bottom: 20px;">
-                    <span style="color: #d32f2f; font-weight: 900;">📧 Email: </span> 
-                    <span style="color: #555;">{school_email}</span>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-
+<div style="background-color: #ffffff; padding: 25px; border-radius: 20px; border: 1px solid #edf2f7; box-shadow: 0 4px 6px rgba(0,0,0,0.02); display: flex; flex-direction: column; justify-content: center; min-height: 330px; margin-bottom: 20px;">
+<h2 style="color: #1a4f8b; margin-top: 0; border-bottom: 2px solid #f0f2f6; padding-bottom: 15px; font-family: 'Arial', sans-serif;">🏫 School Information</h2>
+<div style="display: flex; flex-wrap: wrap; margin-top: 25px; font-size: 15px;">
+<div style="width: 50%; margin-bottom: 20px;">
+<span style="color: #d32f2f; font-weight: 900;">📍 Address: </span> 
+<span style="color: #555;">{school_address}</span>
+</div>
+<div style="width: 50%; margin-bottom: 20px;">
+<span style="color: #d32f2f; font-weight: 900;">📞 Phone: </span> 
+<span style="color: #555;">{school_phone}</span>
+</div>
+<div style="width: 50%; margin-bottom: 20px;">
+<span style="color: #d32f2f; font-weight: 900;">📄 Reg No: </span> 
+<span style="color: #555;">{school_reg}</span>
+</div>
+<div style="width: 50%; margin-bottom: 20px;">
+<span style="color: #d32f2f; font-weight: 900;">📧 Email: </span> 
+<span style="color: #555;">{school_email}</span>
+</div>
+</div>
+</div>
+""", unsafe_allow_html=True)
     st.write("---")
     
     # --- 3. فوری لنکس (Quick Actions) ---
