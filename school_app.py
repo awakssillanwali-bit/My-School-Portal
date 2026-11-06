@@ -320,7 +320,7 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY A
 cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, sender_name TEXT, sender_type TEXT, reg_id TEXT, subject TEXT, details TEXT, status TEXT DEFAULT 'Pending', admin_reply TEXT)''')
    
 conn.commit()
-    return conn
+return conn
 
 conn = init_db()
 cursor = conn.cursor()
