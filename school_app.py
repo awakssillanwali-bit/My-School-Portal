@@ -342,15 +342,73 @@ def get_user_permission(username, module):
     return tuple(int(x) for x in row) if row else default_permissions(role, module)
 
 def permission_authorizer(action, arg1, arg2, db_name, trigger_name):
-    # Enforce write restrictions at SQLite level, not only by hiding controls.
-    if st.session_state.get("current_role") == "Admin": return sqlite3.SQLITE_OK
-    module = st.session_state.get("permission_active_module", "Dashboard")
-    if module == "User Permissions": return sqlite3.SQLITE_DENY
-    perm = st.session_state.get("permission_active_perm", (0,0,0,0))
-    if action == sqlite3.SQLITE_INSERT and not perm[1]: return sqlite3.SQLITE_DENY
-    if action == sqlite3.SQLITE_UPDATE and not perm[2]: return sqlite3.SQLITE_DENY
-    if action == sqlite3.SQLITE_DELETE and not perm[3]: return sqlite3.SQLITE_DENY
-    return sqlite3.SQLITE_OK
+    """Enforce per-user permissions against the actual target table.
+
+    The previous implementation checked only the currently selected sidebar
+    module. That allowed a write in another module to inherit the active
+    module's permission. Resolve the module from SQLite's target table instead.
+    """
+    role = st.session_state.get("current_role")
+    if role == "Admin":
+        return sqlite3.SQLITE_OK
+
+    # Non-admin users must never change schema, attach databases, or modify
+    # account/permission/settings tables through an alternate SQL path.
+    denied_schema_actions = {
+        getattr(sqlite3, name) for name in (
+            "SQLITE_ALTER_TABLE", "SQLITE_CREATE_INDEX", "SQLITE_CREATE_TABLE",
+            "SQLITE_CREATE_TEMP_INDEX", "SQLITE_CREATE_TEMP_TABLE",
+            "SQLITE_CREATE_TEMP_TRIGGER", "SQLITE_CREATE_TEMP_VIEW",
+            "SQLITE_CREATE_TRIGGER", "SQLITE_CREATE_VIEW", "SQLITE_DROP_INDEX",
+            "SQLITE_DROP_TABLE", "SQLITE_DROP_TEMP_INDEX", "SQLITE_DROP_TEMP_TABLE",
+            "SQLITE_DROP_TEMP_TRIGGER", "SQLITE_DROP_TEMP_VIEW", "SQLITE_DROP_TRIGGER",
+            "SQLITE_DROP_VIEW", "SQLITE_ATTACH", "SQLITE_DETACH"
+        ) if hasattr(sqlite3, name)
+    }
+    if action in denied_schema_actions:
+        return sqlite3.SQLITE_DENY
+
+    # Map the real database table to its permission module. Unknown tables are
+    # denied by default so a new feature cannot accidentally become writable.
+    table = str(arg1 or "").lower()
+    table_to_module = {
+        "students": "Students Mgt", "staff": "Staff Mgt",
+        "attendance": "Attendance", "fees": "Fee & Salary",
+        "salary_records": "Salary", "accounts": "Accounts",
+        "account_heads": "Accounts", "subjects": "Academics",
+        "timetable": "Academics", "lesson_plan": "Academics",
+        "exams": "Academics", "exam_marks": "Academics",
+        "academic_sessions": "Academics", "books": "Library",
+        "book_issue": "Library", "inventory": "Inventory",
+        "transport": "Transport", "transport_members": "Transport",
+        "live_locations": "Transport", "visitors": "Gate Security",
+        "complaints": "Helpdesk", "notices": "Notice Board",
+        "discipline": "Discipline & Merit", "merit": "Discipline & Merit",
+        "performance": "Performance", "settings": "School Profile",
+        "users": "User Management", "user_permissions": "User Management"
+    }
+
+    # Only DML actions need action-level permissions. Reads remain governed by
+    # the module's View permission and the visible navigation.
+    if action not in (sqlite3.SQLITE_INSERT, sqlite3.SQLITE_UPDATE, sqlite3.SQLITE_DELETE):
+        return sqlite3.SQLITE_OK
+
+    module = table_to_module.get(table)
+    if not module:
+        return sqlite3.SQLITE_DENY
+    if module in ("User Management", "School Profile"):
+        return sqlite3.SQLITE_DENY
+
+    # Never query the same SQLite connection from inside its authorizer
+    # callback. Permissions are loaded into session state before installing it.
+    permission_cache = st.session_state.get("permission_cache", {})
+    perm = permission_cache.get(module, (0, 0, 0, 0))
+    allowed = {
+        sqlite3.SQLITE_INSERT: bool(perm[1]),
+        sqlite3.SQLITE_UPDATE: bool(perm[2]),
+        sqlite3.SQLITE_DELETE: bool(perm[3])
+    }.get(action, False)
+    return sqlite3.SQLITE_OK if allowed else sqlite3.SQLITE_DENY
 
 cursor.execute("SELECT COUNT(*) FROM users")
 if cursor.fetchone()[0] == 0:
@@ -557,6 +615,15 @@ with st.sidebar:
                 st.stop()
     active_permission_module = "Salary" if core_choice == "Fee & Salary" and sub_choice in ["Pay Salary", "Salary Slips", "📊 سٹاف سیلری", "🖨️ سیلری سلپس"] else core_choice
     st.session_state.permission_active_module = active_permission_module
+    if st.session_state.current_role != "Admin":
+        # Snapshot all module permissions before installing the SQLite
+        # authorizer; callback lookups must not execute SQL recursively.
+        st.session_state.permission_cache = {
+            module: get_user_permission(st.session_state.current_user, module)
+            for module in PERMISSION_MODULES
+        }
+    else:
+        st.session_state.permission_cache = {}
     st.session_state.permission_active_perm = get_user_permission(st.session_state.current_user, active_permission_module) if st.session_state.current_role != "Admin" else (1,1,1,1)
     conn.set_authorizer(permission_authorizer)
 
