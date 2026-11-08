@@ -342,18 +342,60 @@ def get_user_permission(username, module):
     return tuple(int(x) for x in row) if row else default_permissions(role, module)
 
 def permission_authorizer(action, arg1, arg2, db_name, trigger_name):
-    """Enforce per-user permissions against the actual target table.
+    """Apply the selected user's per-module permissions to SQLite operations.
 
-    The previous implementation checked only the currently selected sidebar
-    module. That allowed a write in another module to inherit the active
-    module's permission. Resolve the module from SQLite's target table instead.
+    Custom rows in user_permissions are authoritative. View controls reads;
+    Add/Edit/Delete control INSERT/UPDATE/DELETE independently. Admin bypasses
+    this callback. Unknown application tables fail closed for writes/reads.
     """
-    role = st.session_state.get("current_role")
-    if role == "Admin":
+    if st.session_state.get("current_role") == "Admin":
         return sqlite3.SQLITE_OK
 
-    # Non-admin users must never change schema, attach databases, or modify
-    # account/permission/settings tables through an alternate SQL path.
+    table = str(arg1 or "").lower()
+    table_to_module = {
+        # Core administration
+        "students": "Students Mgt",
+        "staff": "Staff Mgt",
+        "attendance": "Attendance",
+        "leave_requests": "Attendance",
+        "fees": "Fee & Salary",
+        "salary_records": "Salary",
+        "accounts": "Accounts",
+        "account_heads": "Accounts",
+        # Academic system
+        "subjects": "Academics",
+        "sys_classes": "Academics",
+        "sys_sections": "Academics",
+        "sys_subjects": "Academics",
+        "timetable": "Academics",
+        "lesson_plan": "Academics",
+        "exams": "Academics",
+        "exam_marks": "Academics",
+        "academic_sessions": "Academics",
+        # Other modules
+        "books": "Library",
+        "book_issue": "Library",
+        "inventory": "Inventory",
+        "transport": "Transport",
+        "transport_members": "Transport",
+        "live_locations": "Transport",
+        "visitors": "Gate Security",
+        "complaints": "Helpdesk",
+        "notices": "Notice Board",
+        "discipline": "Discipline & Merit",
+        "merit": "Discipline & Merit",
+        "performance": "Performance",
+        "settings": "School Profile",
+        # User and permission administration is always Admin-only.
+        "users": "User Management",
+        "user_permissions": "User Management",
+    }
+
+    # Internal SQLite metadata is not an application module.
+    if table.startswith("sqlite_") or table in ("", "main"):
+        return sqlite3.SQLITE_OK
+
+    # Prevent non-admin users from changing schema or attaching databases.
     denied_schema_actions = {
         getattr(sqlite3, name) for name in (
             "SQLITE_ALTER_TABLE", "SQLITE_CREATE_INDEX", "SQLITE_CREATE_TABLE",
@@ -368,46 +410,28 @@ def permission_authorizer(action, arg1, arg2, db_name, trigger_name):
     if action in denied_schema_actions:
         return sqlite3.SQLITE_DENY
 
-    # Map the real database table to its permission module. Unknown tables are
-    # denied by default so a new feature cannot accidentally become writable.
-    table = str(arg1 or "").lower()
-    table_to_module = {
-        "students": "Students Mgt", "staff": "Staff Mgt",
-        "attendance": "Attendance", "fees": "Fee & Salary",
-        "salary_records": "Salary", "accounts": "Accounts",
-        "account_heads": "Accounts", "subjects": "Academics",
-        "timetable": "Academics", "lesson_plan": "Academics",
-        "exams": "Academics", "exam_marks": "Academics",
-        "academic_sessions": "Academics", "books": "Library",
-        "book_issue": "Library", "inventory": "Inventory",
-        "transport": "Transport", "transport_members": "Transport",
-        "live_locations": "Transport", "visitors": "Gate Security",
-        "complaints": "Helpdesk", "notices": "Notice Board",
-        "discipline": "Discipline & Merit", "merit": "Discipline & Merit",
-        "performance": "Performance", "settings": "School Profile",
-        "users": "User Management", "user_permissions": "User Management"
-    }
-
-    # Only DML actions need action-level permissions. Reads remain governed by
-    # the module's View permission and the visible navigation.
-    if action not in (sqlite3.SQLITE_INSERT, sqlite3.SQLITE_UPDATE, sqlite3.SQLITE_DELETE):
+    module = table_to_module.get(table)
+    if module is None:
+        # Unknown tables must not become a permission bypass.
+        if action in (sqlite3.SQLITE_READ, sqlite3.SQLITE_INSERT,
+                      sqlite3.SQLITE_UPDATE, sqlite3.SQLITE_DELETE):
+            return sqlite3.SQLITE_DENY
         return sqlite3.SQLITE_OK
 
-    module = table_to_module.get(table)
-    if not module:
-        return sqlite3.SQLITE_DENY
-    if module in ("User Management", "School Profile"):
+    if module == "User Management":
         return sqlite3.SQLITE_DENY
 
-    # Never query the same SQLite connection from inside its authorizer
-    # callback. Permissions are loaded into session state before installing it.
-    permission_cache = st.session_state.get("permission_cache", {})
-    perm = permission_cache.get(module, (0, 0, 0, 0))
-    allowed = {
-        sqlite3.SQLITE_INSERT: bool(perm[1]),
-        sqlite3.SQLITE_UPDATE: bool(perm[2]),
-        sqlite3.SQLITE_DELETE: bool(perm[3])
-    }.get(action, False)
+    perm = st.session_state.get("permission_cache", {}).get(module, (0, 0, 0, 0))
+    if action == sqlite3.SQLITE_READ:
+        allowed = bool(perm[0])
+    elif action == sqlite3.SQLITE_INSERT:
+        allowed = bool(perm[1])
+    elif action == sqlite3.SQLITE_UPDATE:
+        allowed = bool(perm[2])
+    elif action == sqlite3.SQLITE_DELETE:
+        allowed = bool(perm[3])
+    else:
+        return sqlite3.SQLITE_OK
     return sqlite3.SQLITE_OK if allowed else sqlite3.SQLITE_DENY
 
 cursor.execute("SELECT COUNT(*) FROM users")
@@ -678,8 +702,6 @@ if core_choice == "User Permissions":
             can_delete = p4.checkbox("Delete / حذف", value=bool(current_perm[3]))
             save_perm = st.form_submit_button("اجازتیں محفوظ کریں", type="primary")
             if save_perm:
-                if not can_view:
-                    can_add = can_edit = can_delete = False
                 cursor.execute("""INSERT INTO user_permissions(username,module,can_view,can_add,can_edit,can_delete)
                     VALUES(?,?,?,?,?,?) ON CONFLICT(username,module) DO UPDATE SET
                     can_view=excluded.can_view, can_add=excluded.can_add,
