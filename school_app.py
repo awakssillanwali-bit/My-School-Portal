@@ -279,6 +279,40 @@ def init_db():
     cursor.execute("UPDATE students SET gender='Boy' WHERE gender IS NULL OR TRIM(gender)=''")
     cursor.execute("UPDATE students SET status='Active' WHERE status IS NULL OR TRIM(status)=''")
     cursor.execute('''CREATE TABLE IF NOT EXISTS staff (staff_id TEXT PRIMARY KEY, name TEXT, fname TEXT, cnic TEXT, dob TEXT, designation TEXT, phone TEXT, address TEXT, joining_date TEXT, salary REAL, advance_salary REAL DEFAULT 0)''')
+
+    # Safe migration for staff fields used by the current staff forms and reports.
+    # This upgrades existing databases in place and preserves all staff records.
+    staff_columns = {
+        "education": "TEXT",
+        "fh_cnic": "TEXT",
+        "photo": "BLOB",
+        "g_type": "TEXT DEFAULT 'Father'",
+        "name_en": "TEXT",
+        "fname_en": "TEXT",
+        "address_en": "TEXT",
+        "gender": "TEXT",
+        "assigned_class": "TEXT",
+        "assigned_sec": "TEXT",
+    }
+    cursor.execute('PRAGMA table_info("staff")')
+    existing_staff_columns = {str(row[1]).casefold() for row in cursor.fetchall()}
+    for column_name, column_type in staff_columns.items():
+        if column_name.casefold() not in existing_staff_columns:
+            try:
+                cursor.execute(
+                    f'ALTER TABLE "staff" ADD COLUMN "{column_name}" {column_type}'
+                )
+                existing_staff_columns.add(column_name.casefold())
+            except sqlite3.OperationalError as migration_error:
+                # A concurrent Streamlit rerun may have added the same column.
+                cursor.execute('PRAGMA table_info("staff")')
+                refreshed_staff_columns = {
+                    str(row[1]).casefold() for row in cursor.fetchall()
+                }
+                if column_name.casefold() in refreshed_staff_columns:
+                    existing_staff_columns = refreshed_staff_columns
+                else:
+                    raise migration_error
     cursor.execute('''CREATE TABLE IF NOT EXISTS attendance (date TEXT, type TEXT, person_id TEXT, status TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS fees (date TEXT, reg_id TEXT, month TEXT, tuition REAL, arrears_col REAL, total REAL, status TEXT DEFAULT 'Paid', due_date TEXT, invoice_no TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS salary_records (date TEXT, staff_id TEXT, month TEXT, amount REAL, remarks TEXT)''')
