@@ -11,17 +11,15 @@ import urllib.parse
 import time
 import random
 import webbrowser
-
 st.markdown("""
 <style>
 /* مین پیج کی اوپر اور سائیڈوں والی فالتو سپیس ختم کرنے کے لیے */
 .block-container {
     padding-top: 1rem !important;
-    padding-left: 1.5rem !important;   /* بائیں طرف (سائیڈ بار کے ساتھ) خالی جگہ ختم کرنا */
-    padding-right: 1.5rem !important;  /* دائیں طرف کی خالی جگہ ختم کرنا */
-    max-width: 100% !important;        /* اسکرین کی مکمل چوڑائی استعمال کرنا */
+    padding-left: 1.5rem !important;
+    padding-right: 1.5rem !important;
+    max-width: 100% !important;
 }
-    }
 /* سائیڈ بار کا بیک گراؤنڈ سفید اور ٹاپ سپیس ختم کرنا */
 [data-testid="stSidebar"] {
     background-color: #ffffff !important;
@@ -69,7 +67,7 @@ header[data-testid="stHeader"] {
     color: #1b5e20 !important;
 }
 
-/* 🔴 ریڈیو بٹن کے گول دائرے کو مکمل غائب کرنا */
+/* ریڈیو بٹن کے گول دائرے کو مکمل غائب کرنا */
 div[data-baseweb="radio"] div {
     display: none !important;
 }
@@ -85,8 +83,6 @@ div[data-baseweb="radio"] {
 }
 </style>
 """, unsafe_allow_html=True)
-
-# 🟢 اس کے نیچے آپ کا باقی کا پرانا کوڈ چلتا رہے گا...
 
 # ----------------- زبان کنٹرول (Translation Engine) -----------------
 if 'ui_lang' not in st.session_state:
@@ -186,7 +182,6 @@ def print_button_js(html_content, btn_text, landscape=False):
     body, html {{ font-family: Arial, sans-serif; margin: 0; padding: 0; background: white; height: auto !important; min-height: 100%; overflow: visible !important; }}
     * {{ -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }}
     
-    /* 🟢 ملٹی پیج پرنٹنگ کے لیے CSS رولز (تاکہ کوئی لائن نہ کٹے) */
     @media print {{
         body, html {{ height: auto !important; overflow: visible !important; display: block !important; }}
         table {{ page-break-inside: auto; width: 100%; }}
@@ -197,6 +192,7 @@ def print_button_js(html_content, btn_text, landscape=False):
     }}
     </style></head>
     <body>{html_content}</body></html>"""
+    
     b64 = base64.b64encode(full_html.encode('utf-8')).decode('utf-8')
     js = f"""
     <script>
@@ -216,109 +212,61 @@ def print_button_js(html_content, btn_text, landscape=False):
     """
     components.html(js, height=60)
 
-import os
-import psycopg2
-from psycopg2 import errors
+# ----------------- ڈیٹا بیس اور سیشن کنکشن (Session Routing) -----------------
+SESSION_TRACKER_FILE = "active_session_db.txt"
 
-# ----------------- کلاؤڈ ڈیٹا بیس اور سمارٹ ریپر (Smart Wrapper) -----------------
-# یہ کلاؤڈ کنکشن آپ کے پرانے کوڈ کو چھیڑے بغیر اسے Neon کلاؤڈ پر چلائے گا
-class PostgresCursorWrapper:
-    def __init__(self, cursor):
-        self.cursor = cursor
-        
-    def execute(self, query, params=None):
-        # پرانے SQLite کے '?' کو نئے Postgres کے '%s' میں آٹو کنورٹ کرنا
-        if '?' in query:
-            query = query.replace('?', '%s')
-        if params:
-            return self.cursor.execute(query, params)
-        return self.cursor.execute(query)
-        
-    def fetchone(self): return self.cursor.fetchone()
-    def fetchall(self): return self.cursor.fetchall()
-    def fetchmany(self, size=None): return self.cursor.fetchmany(size)
-    def close(self): self.cursor.close()
-    
-    @property
-    def description(self): return self.cursor.description
-    @property
-    def rowcount(self): return self.cursor.rowcount
+def get_current_db_filename():
+    if os.path.exists(SESSION_TRACKER_FILE):
+        with open(SESSION_TRACKER_FILE, "r") as f:
+            return f.read().strip()
+    return 'school_system.db'
 
-class PostgresConnWrapper:
-    def __init__(self, conn):
-        self.conn = conn
-    def cursor(self): return PostgresCursorWrapper(self.conn.cursor())
-    def commit(self): self.conn.commit()
-    def rollback(self): self.conn.rollback()
-    def close(self): self.conn.close()
+DB_FILE = get_current_db_filename()
 
-def get_db_connection():
-    # آپ کا لائیو Neon Cloud Database Connection
-    DB_URL = "postgresql://neondb_owner:npg_foZpA5qyrRB6@ep-frosty-pine-b3xhf87r-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require"
-    conn = psycopg2.connect(DB_URL)
-    return PostgresConnWrapper(conn)
-
-# ----------------- ڈیٹا بیس شروع کرنے کا نیا فنکشن (Cloud Init) -----------------
 def init_db():
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # SQLite کے BLOB کو Postgres کے BYTEA میں بدل دیا ہے
-        cursor.execute('''CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, blob_value BYTEA)''')
-        
-        cursor.execute("SELECT value FROM settings WHERE key='password'")
-        if not cursor.fetchone():
-            cursor.execute("INSERT INTO settings (key, value) VALUES ('password', '1234')")
-            
-        cursor.execute('''CREATE TABLE IF NOT EXISTS students (reg_id TEXT PRIMARY KEY, name TEXT, fname TEXT, dob TEXT, blood TEXT, class TEXT, section TEXT, bform TEXT, phone TEXT, address TEXT, prev_school TEXT, prev_class TEXT, medical TEXT, monthly_fee REAL, adm_date TEXT, arrears REAL, advance_fee REAL DEFAULT 0, discount REAL DEFAULT 0)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS staff (staff_id TEXT PRIMARY KEY, name TEXT, fname TEXT, cnic TEXT, dob TEXT, designation TEXT, phone TEXT, address TEXT, joining_date TEXT, salary REAL, advance_salary REAL DEFAULT 0)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS attendance (date TEXT, type TEXT, person_id TEXT, status TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS fees (date TEXT, reg_id TEXT, month TEXT, tuition REAL, arrears_col REAL, total REAL, status TEXT DEFAULT 'Paid', due_date TEXT, invoice_no TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS salary_records (date TEXT, staff_id TEXT, month TEXT, amount REAL, remarks TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS accounts (date TEXT, type TEXT, description TEXT, amount REAL, head_name TEXT, voucher_no TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS account_heads (head_name TEXT PRIMARY KEY, head_type TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS subjects (subject_name TEXT PRIMARY KEY)''')
-        
-        # INTEGER PRIMARY KEY AUTOINCREMENT کو SERIAL PRIMARY KEY سے بدل دیا ہے
-        cursor.execute('''CREATE TABLE IF NOT EXISTS timetable (id SERIAL PRIMARY KEY, class TEXT, section TEXT, day TEXT, period TEXT, subject TEXT, teacher_id TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS lesson_plan (id SERIAL PRIMARY KEY, date TEXT, class TEXT, section TEXT, subject TEXT, teacher_id TEXT, topic TEXT, status TEXT, plan_type TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS exams (exam_name TEXT PRIMARY KEY, start_date TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS exam_marks (id SERIAL PRIMARY KEY, exam_name TEXT, reg_id TEXT, subject TEXT, total_marks REAL, obtained_marks REAL)''')
-        
-        # notices کا ٹیبل آپ کے پرانے کوڈ میں دو بار تھا، میں نے ایک بار کر دیا ہے
-        cursor.execute('''CREATE TABLE IF NOT EXISTS notices (id SERIAL PRIMARY KEY, date TEXT, audience TEXT, title TEXT, details TEXT)''')
-        
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"Database Init Error: {e}")
-init_db()    
-# 🟢 نیا ٹرانسپورٹ اور جی پی ایس ڈیٹا بیس
-cursor.execute('''CREATE TABLE IF NOT EXISTS transport (vehicle_id TEXT PRIMARY KEY, type TEXT, driver_name TEXT, driver_phone TEXT, route_name TEXT, fare REAL, gps_device_id TEXT)''')
-cursor.execute('''CREATE TABLE IF NOT EXISTS transport_members (reg_id TEXT PRIMARY KEY, vehicle_id TEXT)''')
-cursor.execute('''CREATE TABLE IF NOT EXISTS live_locations (device_id TEXT PRIMARY KEY, lat REAL, lon REAL, last_updated TEXT, speed REAL)''')
+    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    cursor = conn.cursor()
     
-# 🟢 نیا انوینٹری اور ہیلپ ڈیسک ڈیٹا بیس
-cursor.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, item_name TEXT, category TEXT, total_qty INTEGER, used_qty INTEGER DEFAULT 0)''')
-cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, sender_name TEXT, sender_type TEXT, reg_id TEXT, subject TEXT, details TEXT, status TEXT DEFAULT 'Pending', admin_reply TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, blob_value BLOB)''')
+    
+    cursor.execute("SELECT value FROM settings WHERE key='password'")
+    if not cursor.fetchone():
+        cursor.execute("INSERT INTO settings (key, value) VALUES ('password', '1234')")
+        
+    cursor.execute('''CREATE TABLE IF NOT EXISTS students (reg_id TEXT PRIMARY KEY, name TEXT, fname TEXT, dob TEXT, blood TEXT, class TEXT, section TEXT, bform TEXT, phone TEXT, address TEXT, prev_school TEXT, prev_class TEXT, medical TEXT, monthly_fee REAL, adm_date TEXT, arrears REAL, advance_fee REAL DEFAULT 0, discount REAL DEFAULT 0)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS staff (staff_id TEXT PRIMARY KEY, name TEXT, fname TEXT, cnic TEXT, dob TEXT, designation TEXT, phone TEXT, address TEXT, joining_date TEXT, salary REAL, advance_salary REAL DEFAULT 0)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS attendance (date TEXT, type TEXT, person_id TEXT, status TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS fees (date TEXT, reg_id TEXT, month TEXT, tuition REAL, arrears_col REAL, total REAL, status TEXT DEFAULT 'Paid', due_date TEXT, invoice_no TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS salary_records (date TEXT, staff_id TEXT, month TEXT, amount REAL, remarks TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS accounts (date TEXT, type TEXT, description TEXT, amount REAL, head_name TEXT, voucher_no TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS account_heads (head_name TEXT PRIMARY KEY, head_type TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS subjects (subject_name TEXT PRIMARY KEY)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS timetable (id INTEGER PRIMARY KEY AUTOINCREMENT, class TEXT, section TEXT, day TEXT, period TEXT, subject TEXT, teacher_id TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS lesson_plan (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, class TEXT, section TEXT, subject TEXT, teacher_id TEXT, topic TEXT, status TEXT, plan_type TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS exams (exam_name TEXT PRIMARY KEY, start_date TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS exam_marks (id INTEGER PRIMARY KEY AUTOINCREMENT, exam_name TEXT, reg_id TEXT, subject TEXT, total_marks REAL, obtained_marks REAL)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS notices (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, audience TEXT, title TEXT, details TEXT)''')
+    
+    # 🟢 نئے فیچرز کے ٹیبلز
+    cursor.execute('''CREATE TABLE IF NOT EXISTS transport (vehicle_id TEXT PRIMARY KEY, type TEXT, driver_name TEXT, driver_phone TEXT, route_name TEXT, fare REAL, gps_device_id TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS transport_members (reg_id TEXT PRIMARY KEY, vehicle_id TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS live_locations (device_id TEXT PRIMARY KEY, lat REAL, lon REAL, last_updated TEXT, speed REAL)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, item_name TEXT, category TEXT, total_qty INTEGER, used_qty INTEGER DEFAULT 0)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, sender_name TEXT, sender_type TEXT, reg_id TEXT, subject TEXT, details TEXT, status TEXT DEFAULT 'Pending', admin_reply TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS books (book_id TEXT PRIMARY KEY, title TEXT, author TEXT, category TEXT, total_qty INTEGER, available_qty INTEGER)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS book_issue (id INTEGER PRIMARY KEY AUTOINCREMENT, book_id TEXT, issued_to_type TEXT, reg_id TEXT, issue_date TEXT, due_date TEXT, return_date TEXT, status TEXT DEFAULT 'Issued', fine REAL DEFAULT 0)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS visitors (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, time_in TEXT, time_out TEXT, name TEXT, phone TEXT, purpose TEXT, to_meet TEXT, status TEXT DEFAULT 'Inside')''')
 
-# Academic Sessions Table (یہ لائن پہلے سے موجود ہوگی، اسے ایسے ہی رہنے دیں)
-    
     # Academic Sessions Table
-cursor.execute('''CREATE TABLE IF NOT EXISTS academic_sessions (session_name TEXT PRIMARY KEY, status TEXT)''')
-cursor.execute("SELECT COUNT(*) FROM academic_sessions")
-if cursor.fetchone()[0] == 0:
-   cursor.execute("INSERT INTO academic_sessions VALUES ('2026-27', 'ACTIVE')")
-    # 🟢 نئے فیچرز (لائبریری، سیکیورٹی، انوینٹری، ہیلپ ڈیسک) کے ٹیبلز
-cursor.execute('''CREATE TABLE IF NOT EXISTS books (book_id TEXT PRIMARY KEY, title TEXT, author TEXT, category TEXT, total_qty INTEGER, available_qty INTEGER)''')
-cursor.execute('''CREATE TABLE IF NOT EXISTS book_issue (id INTEGER PRIMARY KEY AUTOINCREMENT, book_id TEXT, issued_to_type TEXT, reg_id TEXT, issue_date TEXT, due_date TEXT, return_date TEXT, status TEXT DEFAULT 'Issued', fine REAL DEFAULT 0)''')
-cursor.execute('''CREATE TABLE IF NOT EXISTS visitors (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, time_in TEXT, time_out TEXT, name TEXT, phone TEXT, purpose TEXT, to_meet TEXT, status TEXT DEFAULT 'Inside')''')
-cursor.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, item_name TEXT, category TEXT, total_qty INTEGER, used_qty INTEGER DEFAULT 0)''')
-cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, sender_name TEXT, sender_type TEXT, reg_id TEXT, subject TEXT, details TEXT, status TEXT DEFAULT 'Pending', admin_reply TEXT)''')
-   
-conn.commit()
-init_db()
+    cursor.execute('''CREATE TABLE IF NOT EXISTS academic_sessions (session_name TEXT PRIMARY KEY, status TEXT)''')
+    cursor.execute("SELECT COUNT(*) FROM academic_sessions")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute("INSERT INTO academic_sessions VALUES ('2026-27', 'ACTIVE')")
+        
+    conn.commit()
+    return conn
+
+conn = init_db()
 cursor = conn.cursor()
 
 def get_active_session():
@@ -382,13 +330,13 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ================= مینوز اور سیٹنگز =================
-all_menu_ur = ["ڈیش بورڈ", "پیرنٹ پورٹل", "سکول پروفائل", "طلباء مینجمنٹ", "سٹاف مینجمنٹ", "حاضری سسٹم", "فیس، رسیدیں، سیلری", "اکاؤنٹس", "تعلیمی نظام", "لائبریری", "انوینٹری (سٹاک)", "گیٹ سیکیورٹی", "ٹرانسپورٹ (GPS)", "ہیلپ ڈیسک (شکایات)", "واٹس ایپ نوٹیفیکیشن", "پرفارمنس",  "ڈسپلن اور میرٹ" , "آئی ڈی کارڈ", "نوٹس بورڈ", "رپورٹس", "ڈیٹا بیک اپ", "اے آئی جنریٹر", "پاسورڈ تبدیل"]
+all_menu_ur = ["ڈیش بورڈ", "پیرنٹ پورٹل", "سکول پروفائل", "طلباء مینجمنٹ", "سٹاف مینجمنٹ", "حاضری سسٹم", "فیس، رسیدیں، سیلری", "اکاؤنٹس", "تعلیمی نظام", "لائبریری", "انوینٹری (سٹاک)", "گیٹ سیکیورٹی", "ٹرانسپورٹ (GPS)", "ہیلپ ڈیسک (شکایات)", "واٹس ایپ نوٹیفیکیشن", "پرفارمنس", "ڈسپلن اور میرٹ" , "آئی ڈی کارڈ", "نوٹس بورڈ", "رپورٹس", "ڈیٹا بیک اپ", "اے آئی جنریٹر", "پاسورڈ تبدیل"]
 all_menu_en = ["Dashboard", "Parent Portal", "School Profile", "Students Mgt", "Staff Mgt", "Attendance", "Fee & Salary", "Accounts", "Academics", "Library", "Inventory", "Gate Security", "Transport", "Helpdesk", "WhatsApp Alerts", "Performance", "Discipline & Merit", "ID Card Maker", "Notice Board", "Reports", "Data Backup", "AI Generator", "Change Password"]
 all_menu_icons = ["📊", "👨‍👩‍👦", "🏫", "🎓", "👨‍🏫", "📋", "💵", "💲", "📚", "📖", "📦", "🛡️", "🚌", "🎧", "📱", "📈", "📇", "📢", "📑", "💾", "✦", "🔑", "⭐"]
 
 user_role = st.session_state.current_role
 
-# 🟢 بالکل درست الائنمنٹ اور 'if' کے ساتھ رول بیسڈ مینوز
+# رول بیسڈ مینوز
 if user_role == "Admin":
     allowed_menus = all_menu_en
 elif user_role == "Operator":
@@ -413,10 +361,7 @@ sub_menus_map = {
     "Attendance": {"ur": ["طالب علم کی حاضری", "سٹاف کی حاضری", "سمارٹ کیو-آر حاضری", "حاضری رپورٹ و پرنٹ", "چھٹی کی درخواستیں"], "en": ["Student Attendance", "Staff Attendance", "Smart QR Attendance", "Attendance Report & Print", "Leave Requests"]},
     "Fee & Salary": {"ur": ["📄 چالان بنائیں", "💰 فیس وصولی", "🔴 بقایا اور ایڈوانس", "🎁 ڈسکاؤنٹ", "📊 سٹاف سیلری", "🖨️ سیلری سلپس"], "en": ["Generate Fee Challans", "Collect Fees", "Arrears & Advance", "Discount Mgt", "Pay Salary", "Salary Slips"]},
     "Accounts": {"ur": ["روزانہ کی رپورٹ", "ماہانہ رپورٹ", "لیجر / کھاتہ"], "en": ["Daily Report", "Monthly Report", "Ledger"]},
-    
-    # 🟢 Academics کی لسٹ کے آخر میں نیا آپشن "Exam Answer Sheet" شامل کر دیا گیا ہے
     "Academics": {"ur": ["اکیڈمک سیشنز", "کلاسز", "ٹائم ٹیبل", "لیسن پلان", "امتحانات / مارکس", "رزلٹ کارڈ", "پروموشن سسٹم", "امتحانی جوابی کاپی"], "en": ["Academic Sessions", "Classes", "Time Table", "Lesson Plan", "Exams & Marks", "Result Card", "Promotion System", "Exam Answer Sheet"]},
-    
     "Library": {"ur": ["کتابوں کا ریکارڈ", "کتاب جاری / واپس کریں", "لائبریری رپورٹس"], "en": ["Manage Books", "Issue / Return Books", "Library Reports"]},
     "Inventory": {"ur": ["نیا سٹاک شامل کریں", "سٹاک کا ریکارڈ"], "en": ["Add New Stock", "Stock Record"]},
     "Gate Security": {"ur": ["نیا وزیٹر (انٹری)", "موجودہ وزیٹرز (آؤٹ)", "وزیٹر ہسٹری"], "en": ["New Visitor (Entry)", "Active Visitors (Out)", "Visitor History"]},
@@ -483,13 +428,10 @@ if saved_logo_bytes:
     b64_encoded = base64.b64encode(saved_logo_bytes).decode()
     logo_src_b64 = f"data:image/png;base64,{b64_encoded}"
 
-# سائیڈ بار کے اوپر سے سکول کا نام اور لوگو مکمل ختم کر دیا گیا ہے
-
 with st.sidebar:
-# 1. ٹاپ برانڈنگ (لوگو اور سکول کا نام)
+    # 1. ٹاپ برانڈنگ (لوگو اور سکول کا نام)
     logo_html = f'<img src="{logo_src_b64}" style="width: 55px; height: 55px; object-fit: contain; margin-right: 12px;">' if logo_src_b64 else '<div style="font-size:35px; margin-right: 12px;">🏫</div>'
     
-    # 🟢 یہاں padding کو 25px سے کم کر کے 5px کر دیا گیا ہے
     branding_html = f"""
     <div style="display: flex; align-items: center; padding: 5px 10px 20px 10px;">
         {logo_html}
@@ -560,13 +502,13 @@ with st.sidebar:
         st.session_state.current_user = None
         st.rerun()
 
+
 # ================= 1. ڈیش بورڈ (Dashboard) =================
 if core_choice in ["ڈیش بورڈ", "Dashboard"]:
     
     # --- 1. ماڈرن ٹاپ بار / سکول پروفائل ---
     top_bar_logo = f'<img src="{logo_src_b64}" style="width: 35px; height: 35px; object-fit: contain; border-radius: 50%; border: 1px solid #ddd;">' if logo_src_b64 else '<div style="font-size:24px; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; background:#e2e8f0; border-radius:50%;">🏫</div>'
     
-    # خالی لائنیں اور اسپیسز ختم کر دی گئی ہیں تاکہ کوڈ ٹیکسٹ نہ بنے
     top_bar_html = f"""<div style="background-color: #ffffff; border-bottom: 1px solid #edf2f7; border-radius: 12px; padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 25px; flex-wrap: wrap; gap: 15px;">
 <div style="display: flex; align-items: center; gap: 15px;">
 <div style="font-size: 20px; color: #4a5568; cursor: pointer;">☰</div>
@@ -610,7 +552,6 @@ Active Session {active_session}
     elif st.session_state.current_role == "Teacher": user_icon = "👨‍🏫"
     else: user_icon = "👤"
 
-    # 🟢 بالکل تصویر کی طرح کالمز کی ترتیب
     col_welcome, col_alerts = st.columns([1.2, 2.8])
 
     with col_welcome:
@@ -638,27 +579,20 @@ Active Session {active_session}
         st.markdown(welcome_html, unsafe_allow_html=True)
         
     with col_alerts:
-        # 🟢 نیا فیچر: برتھ ڈے الرٹ (Birthday Alerts)
+        today_md = datetime.date.today().strftime("%m-%d")
+        
         try:
-            local_conn = get_db_connection()
-            today_md = datetime.date.today().strftime("%m-%d")
-            bday_students = pd.read_sql(f"SELECT name, name_en, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", local_conn)
-        except Exception:
-            try:
-                bday_students = pd.read_sql(f"SELECT name, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", local_conn)
-            except Exception:
-                import pandas as pd
-                bday_students = pd.DataFrame()
+            bday_students = pd.read_sql(f"SELECT name, name_en, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", conn)
+        except:
+            try: bday_students = pd.read_sql(f"SELECT name, class, section FROM students WHERE dob LIKE '%{today_md}' AND status='Active'", conn)
+            except: bday_students = pd.DataFrame()
             
         try:
-            bday_staff = pd.read_sql(f"SELECT name, name_en, designation FROM staff WHERE dob LIKE '%{today_md}'", local_conn)
+            bday_staff = pd.read_sql(f"SELECT name, name_en, designation FROM staff WHERE dob LIKE '%{today_md}'", conn)
         except:
-            try:
-                bday_staff = pd.read_sql(f"SELECT name, designation FROM staff WHERE dob LIKE '%{today_md}'", local_conn)
-            except:
-                bday_staff = pd.DataFrame()
+            try: bday_staff = pd.read_sql(f"SELECT name, designation FROM staff WHERE dob LIKE '%{today_md}'", conn)
+            except: bday_staff = pd.DataFrame()
         
-        bday_html = ""
         if not bday_students.empty or not bday_staff.empty:
             bday_html = "<div style='background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%); padding: 15px; border-radius: 12px; border: 2px solid #ff758c; box-shadow: 0px 4px 6px rgba(0,0,0,0.1); margin-bottom: 15px; color: #d81b60;'>"
             bday_title = tr("🎂 آج ان کی سالگرہ ہے! (Happy Birthday)", "🎂 Happy Birthday! Today is their special day.")
@@ -681,9 +615,8 @@ Active Session {active_session}
                 
             bday_html += "</ul></div>"
             st.markdown(bday_html, unsafe_allow_html=True)
-            st.balloons()
+            st.balloons() 
             
-        # فیس ڈیفالٹرز کا بلنکر الرٹ
         defaulters_html = ""
         try:
             today_str = datetime.date.today().strftime("%Y-%m-%d")
@@ -713,30 +646,31 @@ Active Session {active_session}
         if defaulters_html:
             st.markdown(defaulters_html, unsafe_allow_html=True)
             
-        # سکول انفو کارڈ (دائیں کالم میں، تصویر کے مطابق)
+        # سکول انفو کارڈ
         st.markdown(f"""
-<div style="background-color: #ffffff; padding: 25px; border-radius: 20px; border: 1px solid #edf2f7; box-shadow: 0 4px 6px rgba(0,0,0,0.02); display: flex; flex-direction: column; justify-content: center; min-height: 330px; margin-bottom: 20px;">
-<h2 style="color: #1a4f8b; margin-top: 0; border-bottom: 2px solid #f0f2f6; padding-bottom: 15px; font-family: 'Arial', sans-serif;">🏫 School Information</h2>
-<div style="display: flex; flex-wrap: wrap; margin-top: 25px; font-size: 15px;">
-<div style="width: 50%; margin-bottom: 20px;">
-<span style="color: #d32f2f; font-weight: 900;">📍 Address: </span> 
-<span style="color: #555;">{school_address}</span>
-</div>
-<div style="width: 50%; margin-bottom: 20px;">
-<span style="color: #d32f2f; font-weight: 900;">📞 Phone: </span> 
-<span style="color: #555;">{school_phone}</span>
-</div>
-<div style="width: 50%; margin-bottom: 20px;">
-<span style="color: #d32f2f; font-weight: 900;">📄 Reg No: </span> 
-<span style="color: #555;">{school_reg}</span>
-</div>
-<div style="width: 50%; margin-bottom: 20px;">
-<span style="color: #d32f2f; font-weight: 900;">📧 Email: </span> 
-<span style="color: #555;">{school_email}</span>
-</div>
-</div>
-</div>
-""", unsafe_allow_html=True)
+        <div style="background-color: #ffffff; padding: 25px; border-radius: 20px; border: 1px solid #edf2f7; box-shadow: 0 4px 6px rgba(0,0,0,0.02); display: flex; flex-direction: column; justify-content: center; min-height: 330px; margin-bottom: 20px;">
+            <h2 style="color: #1a4f8b; margin-top: 0; border-bottom: 2px solid #f0f2f6; padding-bottom: 15px; font-family: 'Arial', sans-serif;">🏫 School Information</h2>
+            <div style="display: flex; flex-wrap: wrap; margin-top: 25px; font-size: 15px;">
+                <div style="width: 50%; margin-bottom: 20px;">
+                    <span style="color: #d32f2f; font-weight: 900;">📍 Address: </span> 
+                    <span style="color: #555;">{school_address}</span>
+                </div>
+                <div style="width: 50%; margin-bottom: 20px;">
+                    <span style="color: #d32f2f; font-weight: 900;">📞 Phone: </span> 
+                    <span style="color: #555;">{school_phone}</span>
+                </div>
+                <div style="width: 50%; margin-bottom: 20px;">
+                    <span style="color: #d32f2f; font-weight: 900;">📄 Reg No: </span> 
+                    <span style="color: #555;">{school_reg}</span>
+                </div>
+                <div style="width: 50%; margin-bottom: 20px;">
+                    <span style="color: #d32f2f; font-weight: 900;">📧 Email: </span> 
+                    <span style="color: #555;">{school_email}</span>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
     st.write("---")
     
     # --- 3. فوری لنکس (Quick Actions) ---
@@ -839,7 +773,7 @@ Active Session {active_session}
     except: st.info(tr("امتحانات کا ڈیٹا دستیاب نہیں۔", "No academic data available."))
 
 # ================= 2. سکول پروفائل =================
-elif core_choice == "School Profile":
+elif core_choice in ["School Profile", "سکول پروفائل"]:
     st.title("🏫 School Details")
     with st.form("school_profile_form"):
         p_name = st.text_input("Full School Name", value=school_name)
@@ -853,6 +787,7 @@ elif core_choice == "School Profile":
         p_facebook = col5.text_input("Facebook", value=school_facebook)
         p_reg = col6.text_input("Registration No", value=school_reg)
         p_logo = st.file_uploader("Upload Logo", type=["png", "jpg", "jpeg"])
+        
         if st.form_submit_button("Save Details"):
             for k, v in [("school_name", p_name), ("school_address", p_address), ("school_phone", p_phone), ("school_whatsapp", p_whatsapp), ("school_email", p_email), ("school_website", p_website), ("school_facebook", p_facebook), ("school_reg", p_reg)]:
                 cursor.execute("DELETE FROM settings WHERE key=?", (k,))
@@ -865,7 +800,7 @@ elif core_choice == "School Profile":
             st.rerun()
 
 # ================= 3. طلباء مینجمنٹ =================
-elif core_choice == "Students Mgt":
+elif core_choice in ["Students Mgt", "طلباء مینجمنٹ"]:
     st.markdown(f"<h2>🎓 {tr('طلباء مینجمنٹ', 'Students Management')} - {tr(sub_choice, sub_choice)}</h2>", unsafe_allow_html=True)
     
     def generate_student_profile_html(reg_no):
@@ -912,30 +847,30 @@ elif core_choice == "Students Mgt":
         <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']}; width: 20%;">{tr('نام:', 'Name:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']}; width: 30%;">{d_name}</td>
         <th style="border: 1px solid black; padding: 4px; text-align: {t['align']}; width: 20%;">{tr('جنس:', 'Gender:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']}; width: 30%;">{disp_gender}</td></tr>
         <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('تاریخ پیدائش:', 'DOB:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{dob_fmt}</td>
-        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('ب فارم نمبر:', 'B-Form:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row['bform']}</td></tr>
-        <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('بلڈ گروپ:', 'Blood Group:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row['blood']}</td>
-        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('فون نمبر:', 'Phone No:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row['phone']}</td></tr>
+        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('ب فارم نمبر:', 'B-Form:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row.get('bform', '')}</td></tr>
+        <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('بلڈ گروپ:', 'Blood Group:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row.get('blood', '')}</td>
+        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('فون نمبر:', 'Phone No:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row.get('phone', '')}</td></tr>
         <tr><td colspan="4" style="background-color:#e0e0e0; text-align:center; font-weight:bold; font-size: 16px; border: 1px solid black;">{tr('والدین کی معلومات', 'Parents Information')}</td></tr>
         <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{lbl_fname}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{d_fname}</td>
-        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('شناختی کارڈ:', 'CNIC:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row['fcnic']}</td></tr>
-        <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('والدہ کا نام:', "Mother's Name:")}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row['mname']}</td>
-        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('شناختی کارڈ:', 'CNIC:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row['mcnic']}</td></tr>
+        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('شناختی کارڈ:', 'CNIC:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row.get('fcnic', '')}</td></tr>
+        <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('والدہ کا نام:', "Mother's Name:")}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row.get('mname', '')}</td>
+        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('شناختی کارڈ:', 'CNIC:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row.get('mcnic', '')}</td></tr>
         <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('والد کا پیشہ:', "Father's Profession:")}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row.get('f_prof', '')}</td>
         <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('مکمل پتہ:', 'Address:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{d_address}</td></tr>
         <tr><td colspan="4" style="background-color:#e0e0e0; text-align:center; font-weight:bold; font-size: 16px; border: 1px solid black;">{tr('دفتری معلومات', 'Office Information')}</td></tr>
         <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('داخلہ نمبر:', 'Admission No:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row['reg_id']}</td>
         <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('تاریخ داخلہ:', 'Admission Date:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{adm_fmt}</td></tr>
         <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('کلاس / سیکشن:', 'Class / Sec:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row['class']} ( {row['section']} )</td>
-        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('سابقہ سکول:', 'Prev School:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row['prev_school']}</td></tr>
-        <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('مقررہ فیس:', 'Monthly Fee:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">Rs {safe_int(row['monthly_fee'])}</td>
-        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('میڈیکل ہسٹری:', 'Medical Info:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row['medical']}</td></tr>
+        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('سابقہ سکول:', 'Prev School:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row.get('prev_school', '')}</td></tr>
+        <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('مقررہ فیس:', 'Monthly Fee:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">Rs {safe_int(row.get('monthly_fee', 0))}</td>
+        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('میڈیکل ہسٹری:', 'Medical Info:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row.get('medical', '')}</td></tr>
         </table>
         <table style="width:100%; border:none; margin-top:20px;" dir="{t['dir']}">
         <tr><td style="text-align: {t['align']}; width: 50%;"><b>{tr('والد/سرپرست کے دستخط:', 'Parent Signature:')}</b> ___________________</td>
         <td style="text-align: {'left' if st.session_state.ui_lang == 'اردو' else 'right'}; width: 50%;"><b>{tr('پرنسپل کے دستخط:', 'Principal Sig:')}</b> ___________________</td></tr>
         </table></div>"""
 
-    if sub_choice == "New Admission":
+    if sub_choice in ["New Admission", "نیا داخلہ"]:
         with st.form("student_form", clear_on_submit=True):
             stud_count = pd.read_sql("SELECT COUNT(*) FROM students", conn).iloc[0, 0]
             auto_reg_no = "1001" if stud_count == 0 else str(safe_int(pd.read_sql("SELECT MAX(CAST(reg_id AS INTEGER)) FROM students", conn).iloc[0, 0]) + 1)
@@ -999,9 +934,7 @@ elif core_choice == "Students Mgt":
                     ad_en = address if st.session_state.ui_lang == "English" else ""
                     
                     try:
-                        cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", 
-                                       (guardian_username.strip(), guardian_password.strip(), "Guardian"))
-                        
+                        cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (guardian_username.strip(), guardian_password.strip(), "Guardian"))
                         cursor.execute("""
                             INSERT INTO students 
                             (reg_id, name, fname, dob, blood, class, section, bform, phone, address, prev_school, prev_class, medical, monthly_fee, adm_date, arrears, gender, mname, fcnic, mcnic, photo, g_type, f_prof, name_en, fname_en, address_en, status) 
@@ -1015,7 +948,7 @@ elif core_choice == "Students Mgt":
                     except Exception as e: 
                         st.error(f"Error saving student: {e}")
 
-    elif sub_choice == "Edit Record":
+    elif sub_choice in ["Edit Record", "ریکارڈ ایڈٹ کریں"]:
         st.markdown("### ✏️ طالب علم کا ریکارڈ ایڈٹ کریں")
         edit_reg = st.text_input(tr("رجسٹریشن نمبر لکھیں (مثلاً: 1001)", "Enter Registration No to Edit"))
         
@@ -1024,14 +957,13 @@ elif core_choice == "Students Mgt":
             if not stu_match.empty:
                 stu_data = stu_match.iloc[0]
                 
-                # 🟢 ڈیٹا بیس فکسر (خود کار طور پر مسنگ کالم بنائے گا)
+                # SQLite ڈیٹا بیس کے لیے مسنگ کالمز چیکر
                 for col in ['name_en', 'fname_en', 'address_en', 'gender', 'mname', 'fcnic', 'mcnic', 'g_type', 'f_prof', 'bform']:
                     try: 
                         cursor.execute(f"ALTER TABLE students ADD COLUMN {col} TEXT")
                         conn.commit()
                     except: pass
 
-                # 🟢 پیرنٹ کا اکاؤنٹ فائنڈر
                 phone_val = str(stu_data.get('phone', '')).strip()
                 parent_user = f"parent_{edit_reg}"
                 
@@ -1067,6 +999,7 @@ elif core_choice == "Students Mgt":
                     bg_opts = ["Unknown", "A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"]
                     curr_bg = stu_data.get("blood", "Unknown")
                     e_blood_val = c10.selectbox(tr("بلڈ گروپ", "Blood Group"), bg_opts, index=bg_opts.index(curr_bg) if curr_bg in bg_opts else 0)
+                    
                     try: e_dob_val = datetime.datetime.strptime(stu_data.get("dob", "2015-01-01"), "%Y-%m-%d").date()
                     except: e_dob_val = datetime.date(2015, 1, 1)
                     e_dob = c11.date_input(tr("تاریخ پیدائش", "DOB"), value=e_dob_val)
@@ -1087,7 +1020,6 @@ elif core_choice == "Students Mgt":
                     e_adm_date = c19.date_input(tr("تاریخِ داخلہ", "Adm Date"), value=e_adm_val)
                     e_address = c20.text_input(tr("مکمل پتہ", "Full Address"), value=curr_address)
                     
-                    # 🟢 پورٹل لاگ ان اور سیو بٹن
                     st.markdown(f"#### 🔒 {tr('والدین کا پورٹل لاگ ان', 'Parent Portal Login')} {acc_status}", unsafe_allow_html=True)
                     c_log1, c_log2 = st.columns(2)
                     e_username = c_log1.text_input(tr("یوزر نیم (Username)", "Username"), value=def_u)
@@ -1095,7 +1027,6 @@ elif core_choice == "Students Mgt":
 
                     if st.form_submit_button(tr("تبدیلیاں محفوظ کریں", "Save Changes"), type="primary"):
                         try:
-                            # 🟢 مضبوط پیرامیٹرائزڈ کیوری (جو کبھی کریش نہیں ہوگی)
                             if st.session_state.ui_lang == "اردو":
                                 cursor.execute("""
                                     UPDATE students SET 
@@ -1113,7 +1044,6 @@ elif core_choice == "Students Mgt":
                                     WHERE reg_id=?
                                 """, (e_name, e_gender, e_mname, e_fcnic, e_mcnic, e_class, e_sec, e_prev_school, e_prev_class, e_fprof, e_phone, float(e_fee), float(e_arrears), e_adm_date.strftime("%Y-%m-%d"), e_blood_val, e_bform, e_g_type, e_dob.strftime("%Y-%m-%d"), e_fname, e_address, edit_reg))
 
-                            # 🟢 یوزر اکاؤنٹ اپڈیٹ یا نیا بنانا
                             if e_username.strip():
                                 cursor.execute("SELECT id FROM users WHERE username=?", (e_username.strip(),))
                                 if cursor.fetchone():
@@ -1135,17 +1065,14 @@ elif core_choice == "Students Mgt":
         st.markdown(f"### &#128269; {tr('طلباء تلاش کریں (Student Search)', 'Search Students')}", unsafe_allow_html=True)
         st.write(tr("یہاں سے آپ طلباء کا ریکارڈ نام، رجسٹریشن نمبر، کلاس اور ب-فارم کے ذریعے باآسانی تلاش کر سکتے ہیں۔", "Search students by Name, Reg No, Class, or B-Form."))
         
-        # 🟢 سمارٹ اور ایڈوانسڈ سرچ فلٹرز
         with st.expander(tr("تلاش اور فلٹرز (Search & Filters)", "Search & Filters"), expanded=True):
             c_s1, c_s2, c_s3, c_s4 = st.columns(4)
             
             f_reg = c_s1.text_input(tr("رجسٹریشن نمبر", "Registration No"), placeholder="مثلاً: 1001")
             f_name = c_s2.text_input(tr("طالب علم کا نام", "Student Name"), placeholder="مثلاً: Ali")
             
-            try: 
-                db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
-            except: 
-                db_cls = ["Play Group", "Nursery", "Prep", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th"]
+            try: db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
+            except: db_cls = ["Play Group", "Nursery", "Prep", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th"]
                 
             f_class = c_s3.selectbox(tr("کلاس (Class)", "Class"), ["All"] + db_cls)
             f_bform = c_s4.text_input(tr("ب-فارم / CNIC", "B-Form / CNIC"), placeholder="38403-...")
@@ -1153,25 +1080,18 @@ elif core_choice == "Students Mgt":
             if st.button(tr("فلٹرز صاف کریں (Clear Filters)", "Clear Filters")):
                 st.rerun()
                 
-        # 🟢 ڈائنیمک کیوری (شرائط کے مطابق)
-        # ڈیٹا بیس میں کالم b_form یا cnic ہو سکتا ہے، اس لیے ہم محفوظ طریقہ استعمال کریں گے
         try:
-            # کالمز چیک کرنے کے لیے
             test_df = pd.read_sql("SELECT * FROM students LIMIT 1", conn)
-            bform_col = 'b_form' if 'b_form' in test_df.columns else ('cnic' if 'cnic' in test_df.columns else '')
+            bform_col = 'b_form' if 'b_form' in test_df.columns else ('cnic' if 'cnic' in test_df.columns else ('bform' if 'bform' in test_df.columns else ''))
         except:
-            bform_col = 'b_form'
+            bform_col = 'bform'
 
         base_query = f"SELECT reg_id, name, fname, class, section, phone, {bform_col if bform_col else "'' as b_form"}, status FROM students WHERE 1=1"
         
-        if f_reg.strip():
-            base_query += f" AND reg_id LIKE '%{f_reg.strip()}%'"
-        if f_name.strip():
-            base_query += f" AND (name LIKE '%{f_name.strip()}%' OR name_en LIKE '%{f_name.strip()}%')"
-        if f_class != "All":
-            base_query += f" AND class = '{f_class}'"
-        if f_bform.strip() and bform_col:
-            base_query += f" AND {bform_col} LIKE '%{f_bform.strip()}%'"
+        if f_reg.strip(): base_query += f" AND reg_id LIKE '%{f_reg.strip()}%'"
+        if f_name.strip(): base_query += f" AND (name LIKE '%{f_name.strip()}%' OR name_en LIKE '%{f_name.strip()}%')"
+        if f_class != "All": base_query += f" AND class = '{f_class}'"
+        if f_bform.strip() and bform_col: base_query += f" AND {bform_col} LIKE '%{f_bform.strip()}%'"
             
         base_query += " ORDER BY class, CAST(reg_id AS INTEGER)"
         
@@ -1181,7 +1101,6 @@ elif core_choice == "Students Mgt":
             search_df = pd.DataFrame()
             st.error(f"Error fetching records: {e}")
                 
-        # 🟢 رزلٹ ظاہر کرنا
         if not search_df.empty:
             st.success(f"✅ {tr('کل', 'Total')} **{len(search_df)}** {tr('طلباء کا ریکارڈ ملا', 'records found')}")
             
@@ -1195,7 +1114,7 @@ elif core_choice == "Students Mgt":
         else:
             st.info(tr("دی گئی معلومات کے مطابق کوئی طالب علم نہیں ملا۔", "No student found matching the provided criteria."))
                 
-    elif sub_choice == "Print Profile":
+    elif sub_choice in ["Print Profile", "🖨️ پرنٹ پروفائل"]:
         c_pr1, c_pr2 = st.columns([2, 1])
         print_reg = c_pr1.text_input(tr("رول نمبر درج کریں:", "Enter Reg No to Print:"), key="print_profile_reg")
         if print_reg:
@@ -1210,15 +1129,18 @@ elif core_choice == "Students Mgt":
         c_cert1, c_cert2 = st.columns([1, 2])
         cert_type = c_cert1.selectbox(tr("سرٹیفکیٹ کی قسم", "Certificate Type"), ["School Leaving Certificate", "Character Certificate", "Graduation Certificate (سند)"])
         
+        try: 
+            cursor.execute("ALTER TABLE students ADD COLUMN bform TEXT")
+            conn.commit()
+        except: pass
+            
         all_st_df = pd.read_sql("SELECT reg_id, name, fname, class, gender, bform, g_type FROM students", conn)
         if not all_st_df.empty:
             all_st_df['reg_id'] = all_st_df['reg_id'].astype(str)
-            
             stu_list = [f"{r['name']} (S/O {r['fname']}) - Reg: {r['reg_id']} - Class: {r['class']}" for _, r in all_st_df.iterrows()]
             sel_stu = c_cert2.selectbox(tr("طالب علم منتخب کریں", "Select Student"), stu_list)
             
             sel_reg = str(sel_stu.split("Reg: ")[1].split(" - ")[0]).strip()
-            
             matching_rows = all_st_df[all_st_df['reg_id'] == sel_reg]
             
             if not matching_rows.empty:
@@ -1234,24 +1156,16 @@ elif core_choice == "Students Mgt":
                         rel_type = str(stu_data.get('g_type', 'Father')).strip()
                         
                         if g_val in ['girl', 'female', 'عورت', 'لڑکی']:
-                            pron_sub = "She"
-                            pron_obj = "her"
-                            pron_pos = "her"
-                            rel_text = "daughter"
+                            pron_sub, pron_obj, pron_pos, rel_text = "She", "her", "her", "daughter"
                         else:
-                            pron_sub = "He"
-                            pron_obj = "him"
-                            pron_pos = "his"
-                            rel_text = "son"
+                            pron_sub, pron_obj, pron_pos, rel_text = "He", "him", "his", "son"
                             
-                        if rel_type in ["Guardian", "سرپرست"]:
-                            rel_text = "ward"
+                        if rel_type in ["Guardian", "سرپرست"]: rel_text = "ward"
                         
                         stu_name = str(stu_data['name']).strip()
                         f_name = str(stu_data['fname']).strip()
                         s_class = str(stu_data['class']).strip()
                         s_reg = str(stu_data['reg_id']).strip()
-                        
                         s_bform = str(stu_data.get('bform', '-')).strip()
                         if not s_bform or s_bform == 'nan' or s_bform == 'None': s_bform = "N/A"
                         
@@ -1446,12 +1360,9 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
         d_address = get_disp_val(row['address'], row.get('address_en'))
         
         raw_g = str(row.get('g_type', 'Father'))
-        if "Husband" in raw_g or "شوہر" in raw_g:
-            lbl_fname = tr("شوہر کا نام:", "Husband's Name:")
-        elif "Guardian" in raw_g or "سرپرست" in raw_g:
-            lbl_fname = tr("سرپرست کا نام:", "Guardian's Name:")
-        else:
-            lbl_fname = tr("والد کا نام:", "Father's Name:")
+        if "Husband" in raw_g or "شوہر" in raw_g: lbl_fname = tr("شوہر کا نام:", "Husband's Name:")
+        elif "Guardian" in raw_g or "سرپرست" in raw_g: lbl_fname = tr("سرپرست کا نام:", "Guardian's Name:")
+        else: lbl_fname = tr("والد کا نام:", "Father's Name:")
         
         local_logo = logo_src_b64 if 'logo_src_b64' in locals() or 'logo_src_b64' in globals() else ""
         logo_base64_html = f'<img src="{local_logo}" style="width: 50px; height: 50px; object-fit: contain;">' if local_logo else '<div style="font-size:28px;">🏫</div>'
@@ -1471,23 +1382,22 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
         <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']}; width: 20%;">{tr('نام:', 'Name:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']}; width: 30%;">{d_name}</td>
         <th style="border: 1px solid black; padding: 4px; text-align: {t['align']}; width: 20%;">{tr('سٹاف ID:', 'Staff ID:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']}; width: 30%;">{row['staff_id']}</td></tr>
         <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{lbl_fname}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{d_fname}</td>
-        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('شناختی کارڈ:', 'CNIC:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row['cnic']}</td></tr>
-        <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('فون نمبر:', 'Phone No:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row['phone']}</td>
+        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('شناختی کارڈ:', 'CNIC:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row.get('cnic', '')}</td></tr>
+        <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('فون نمبر:', 'Phone No:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row.get('phone', '')}</td>
         <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('تاریخ پیدائش:', 'DOB:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{dob_fmt}</td></tr>
         <tr><td colspan="4" style="background-color:#e0e0e0; text-align:center; font-weight:bold; font-size: 16px; border: 1px solid black;">{tr('تعلیمی اور دفتری معلومات', 'Office & Education Info')}</td></tr>
-        <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('عہدہ:', 'Designation:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row['designation']}</td>
-        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('تنخواہ:', 'Salary:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">Rs {safe_int(row['salary'])}</td></tr>
+        <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('عہدہ:', 'Designation:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row.get('designation', '')}</td>
+        <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('تنخواہ:', 'Salary:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">Rs {safe_int(row.get('salary', 0))}</td></tr>
         <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('تاریخ شمولیت:', 'Joining Date:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{join_fmt}</td>
         <th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('تعلیم:', 'Education:')}</th><td style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{row.get('education', '')}</td></tr>
         <tr><th style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{tr('مکمل پتہ:', 'Address:')}</th><td colspan="3" style="border: 1px solid black; padding: 4px; text-align: {t['align']};">{d_address}</td></tr>
         </table>
         </div>"""
 
-    if sub_choice == "New Staff":
-        try: cursor.execute("ALTER TABLE staff ADD COLUMN assigned_class TEXT")
-        except: pass
-        try: cursor.execute("ALTER TABLE staff ADD COLUMN assigned_sec TEXT")
-        except: pass
+    if sub_choice in ["New Staff", "نیا سٹاف"]:
+        for col in ['assigned_class', 'assigned_sec']:
+            try: cursor.execute(f"ALTER TABLE staff ADD COLUMN {col} TEXT")
+            except: pass
         conn.commit()
 
         with st.form("staff_form", clear_on_submit=True):
@@ -1503,8 +1413,8 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
             staff_dob = c3.date_input(tr("تاریخ پیدائش", "Date of Birth"), min_value=datetime.date(1970, 1, 1), max_value=datetime.date.today(), value=datetime.date(1990, 1, 1))
             staff_photo = c4.file_uploader(tr("سٹاف کی تصویر", "Staff Photo"), type=["jpg", "jpeg", "png"])
             
-            c4, c5, c6 = st.columns([1, 2, 2])
-            g_disp = c4.selectbox(tr("رشتہ", "Relation"), [tr("والد", "Father"), tr("شوہر", "Husband"), tr("سرپرست", "Guardian")])
+            c4_1, c5, c6 = st.columns([1, 2, 2])
+            g_disp = c4_1.selectbox(tr("رشتہ", "Relation"), [tr("والد", "Father"), tr("شوہر", "Husband"), tr("سرپرست", "Guardian")])
             g_type = "Father" if g_disp in ["والد", "Father"] else ("Husband" if g_disp in ["شوہر", "Husband"] else "Guardian")
             father_husband_name = c5.text_input(tr("رشتہ دار کا نام", "Relation Name"))
             cnic = c6.text_input(tr("سٹاف شناختی کارڈ", "Staff CNIC"))
@@ -1593,7 +1503,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                     except Exception as e: 
                         st.error(f"Error saving staff: {e}")
 
-    elif sub_choice == "Edit Staff":
+    elif sub_choice in ["Edit Staff", "سٹاف ایڈٹ کریں"]:
         st.markdown("### ✏️ سٹاف کا ریکارڈ ایڈٹ کریں")
         edit_staff_id = st.text_input(tr("سٹاف ID درج کریں (مثلاً: 101)", "Enter Staff ID to Edit"))
         
@@ -1637,12 +1547,12 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                     e_dob = c2.date_input(tr("تاریخ پیدائش", "DOB"), value=e_dob_val)
                     e_photo = c3.file_uploader(tr("نئی تصویر اپلوڈ کریں", "Upload New Photo"), type=["jpg", "jpeg", "png"])
                     
-                    c4, c5, c6 = st.columns([1, 2, 2])
+                    c4_1, c5, c6 = st.columns([1, 2, 2])
                     raw_g = str(stf_data.get("g_type", "Father"))
                     if "Father" in raw_g or "والد" in raw_g: g_idx_stf = 0
                     elif "Husband" in raw_g or "شوہر" in raw_g: g_idx_stf = 1
                     else: g_idx_stf = 2
-                    g_disp_e = c4.selectbox(tr("رشتہ", "Relation"), [tr("والد", "Father"), tr("شوہر", "Husband"), tr("سرپرست", "Guardian")], index=g_idx_stf)
+                    g_disp_e = c4_1.selectbox(tr("رشتہ", "Relation"), [tr("والد", "Father"), tr("شوہر", "Husband"), tr("سرپرست", "Guardian")], index=g_idx_stf)
                     if g_disp_e in ["والد", "Father"]: e_g_type = "Father"
                     elif g_disp_e in ["شوہر", "Husband"]: e_g_type = "Husband"
                     else: e_g_type = "Guardian"
@@ -1781,7 +1691,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
             else:
                 st.warning(tr("اس آئی ڈی کا کوئی سٹاف موجود نہیں۔", "No staff found with this ID."))
 
-    elif sub_choice == "Search Staff":
+    elif sub_choice in ["Search Staff", "سٹاف تلاش کریں"]:
         s_staff_q = st.text_input(tr("سٹاف کا نام، ID، یا CNIC درج کریں:", "Enter Staff Name, ID, or CNIC:"))
         if s_staff_q:
             res_stf = pd.read_sql(f"SELECT staff_id as 'ID', name as 'Name', name_en as 'Name_EN', education as 'Education', designation as 'Designation', cnic as 'CNIC', phone as 'Phone', salary as 'Salary' FROM staff WHERE name LIKE '%{s_staff_q}%' OR name_en LIKE '%{s_staff_q}%' OR staff_id LIKE '%{s_staff_q}%' OR cnic LIKE '%{s_staff_q}%'", conn)
@@ -1790,7 +1700,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                 res_stf = res_stf[['ID', 'Final Name', 'Education', 'Designation', 'CNIC', 'Phone', 'Salary']]
                 st.dataframe(res_stf, use_container_width=True)
                 
-    elif sub_choice == "Print Profile":
+    elif sub_choice in ["Print Profile", "پروفائل پرنٹ کریں"]:
         c_pr1, c_pr2 = st.columns([2, 1])
         print_staff_id = c_pr1.text_input(tr("سٹاف ID درج کریں:", "Enter Staff ID to Print:"), key="print_profile_staff")
         if print_staff_id:
@@ -1812,12 +1722,10 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
         all_stf_df = pd.read_sql("SELECT staff_id, name, fname, designation, gender, cnic, joining_date, g_type FROM staff", conn)
         if not all_stf_df.empty:
             all_stf_df['staff_id'] = all_stf_df['staff_id'].astype(str)
-            
             stf_list = [f"{r['name']} ({r['designation']}) - ID: {r['staff_id']}" for _, r in all_stf_df.iterrows()]
             sel_stf = c_cert2.selectbox(tr("سٹاف ممبر منتخب کریں", "Select Staff Member"), stf_list)
             
             sel_id = str(sel_stf.split("ID: ")[1]).strip()
-            
             matching_rows = all_stf_df[all_stf_df['staff_id'] == sel_id]
             
             if not matching_rows.empty:
@@ -1838,20 +1746,11 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                         rel_type = str(stf_data.get('g_type', 'Father')).strip()
                         
                         if rel_type in ["Husband", "شوہر"]:
-                            rel_text = "Wife"
-                            pron_sub = "She"
-                            pron_obj = "her"
-                            pron_pos = "her"
+                            rel_text, pron_sub, pron_obj, pron_pos = "Wife", "She", "her", "her"
                         elif g_val in ["Female", "عورت", "Girl", "لڑکی", "female"]:
-                            rel_text = "Daughter"
-                            pron_sub = "She"
-                            pron_obj = "her"
-                            pron_pos = "her"
+                            rel_text, pron_sub, pron_obj, pron_pos = "Daughter", "She", "her", "her"
                         else:
-                            rel_text = "Son"
-                            pron_sub = "He"
-                            pron_obj = "him"
-                            pron_pos = "his"
+                            rel_text, pron_sub, pron_obj, pron_pos = "Son", "He", "him", "his"
                         
                         stf_name = str(stf_data['name']).strip()
                         f_name = str(stf_data['fname']).strip()
@@ -1860,10 +1759,8 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                         s_cnic = str(stf_data.get('cnic', '-')).strip()
                         if not s_cnic or s_cnic == 'nan' or s_cnic == 'None': s_cnic = "N/A"
                         
-                        try:
-                            join_date = datetime.datetime.strptime(stf_data['joining_date'], "%Y-%m-%d").strftime("%d-%b-%Y")
-                        except:
-                            join_date = stf_data['joining_date']
+                        try: join_date = datetime.datetime.strptime(stf_data['joining_date'], "%Y-%m-%d").strftime("%d-%b-%Y")
+                        except: join_date = stf_data['joining_date']
                         
                         pron_pos_cap = pron_pos.capitalize()
                         
@@ -1928,9 +1825,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                                                 <span style="font-size: 14px; color: #666; font-weight: normal;">Date of Issue:</span><br>
                                                 <span style="font-size: 17px; border-bottom: 1px solid #000; padding-bottom: 2px; display: inline-block; min-width: 150px;">{issue_date.strftime('%d-%b-%Y')}</span>
                                             </td>
-                                            <td style="text-align: center; width: 33%; vertical-align: bottom;">
-                                                
-                                            </td>
+                                            <td style="text-align: center; width: 33%; vertical-align: bottom;"></td>
                                             <td style="text-align: right; width: 33%; vertical-align: bottom;">
                                                 _____________________<br>
                                                 <span style="font-size: 14px; color: #666; font-weight: normal;">Principal Signature</span>
@@ -1962,7 +1857,6 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
         t_align = "left" if is_eng else "right"
         t_align_opp = "right" if is_eng else "left"
         
-        # 🟢 نستعلیق فونٹ کا ویب لنک تاکہ اردو ہر براؤزر میں پرفیکٹ نظر آئے
         if is_eng:
             font_css = ""
             f_family = "'Arial', sans-serif"
@@ -2020,19 +1914,13 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
             
             if rel_type in ["husband", "شوہر"]:
                 rel_label = "W/O" if is_eng else "زوجہ"
-                pron_sub = "She"
-                pron_obj = "her"
-                pron_pos = "her"
+                pron_sub, pron_obj, pron_pos = "She", "her", "her"
             elif g_val in ["female", "عورت", "girl", "لڑکی", "f"]:
                 rel_label = "D/O" if is_eng else "بنتِ"
-                pron_sub = "She"
-                pron_obj = "her"
-                pron_pos = "her"
+                pron_sub, pron_obj, pron_pos = "She", "her", "her"
             else:
                 rel_label = "S/O" if is_eng else "ولد"
-                pron_sub = "He"
-                pron_obj = "him"
-                pron_pos = "his"
+                pron_sub, pron_obj, pron_pos = "He", "him", "his"
                 
             pron_pos_cap = pron_pos.capitalize()
             
@@ -2041,7 +1929,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
 
             st.write("---")
             
-            # 🟢 1. ایمپلائمنٹ کنٹریکٹ (Employment Contract)
+            # 🟢 1. ایمپلائمنٹ کنٹریکٹ
             if doc_type == "Employment Contract":
                 st.info(tr("معاہدے کی اضافی تفصیلات درج کریں:", "Enter additional contract details:"))
                 cc1, cc2 = st.columns(2)
@@ -2103,7 +1991,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                     """
                     print_button_js(doc_html, tr("🖨️ پرنٹ کنٹریکٹ", "🖨️ Print Contract"), landscape=False)
 
-            # 🟢 2. جاب ڈسکرپشن اور قواعد (Job Description & Code of Conduct)
+            # 🟢 2. جاب ڈسکرپشن
             elif doc_type == "Job Description & Code of Conduct":
                 st.info(tr("یہ لیٹر ایمپلائی کے عہدے کے حساب سے آٹو جنریٹ ہوگا۔", "This document will auto-generate based on employee designation."))
                 if st.button(tr("ڈیوٹیز اور رولز جنریٹ کریں", "Generate Duties & Rules"), type="primary"):
@@ -2144,7 +2032,6 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                     sign_emp = "Employee's Signature" if is_eng else "ملازم کے دستخط"
                     sign_prin = "Principal's Signature" if is_eng else "پرنسپل کے دستخط"
 
-                    # 🟢 سنگل پیج پر فکس کرنے کے لیے پیڈنگ اور مارجنز کو ایڈجسٹ کر دیا گیا ہے
                     doc_html = f"""
                     {font_css}
                     <div style="font-family: {f_family}; padding: 25px 35px; max-width: 800px; margin: 0 auto; border: 2px solid #1a4f8b; background: white; position: relative; z-index: 1; box-sizing: border-box; page-break-inside: avoid;" dir="{t_dir}">
@@ -2196,7 +2083,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                     """
                     print_button_js(doc_html, tr("🖨️ پرنٹ ڈیوٹیز لیٹر", "🖨️ Print Duties Letter"), landscape=False)
 
-            # 🟢 3. جوائننگ رپورٹ (Joining Report)
+            # 🟢 3. جوائننگ رپورٹ
             elif doc_type == "Joining Report":
                 st.info(tr("جوائننگ رپورٹ کی تفصیلات:", "Joining Report Details:"))
                 j_date = st.date_input(tr("جوائننگ کی اصل تاریخ", "Actual Joining Date"), value=datetime.date.today())
@@ -2249,7 +2136,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                     """
                     print_button_js(doc_html, tr("🖨️ پرنٹ جوائننگ رپورٹ", "🖨️ Print Joining Report"), landscape=False)
 
-            # 🟢 4. اینول کانفیڈینشل رپورٹ (ACR)
+            # 🟢 4. ACR
             elif doc_type == "Annual Confidential Report (ACR)":
                 st.info(tr("سٹاف کی کارکردگی کی درجہ بندی کریں:", "Rate staff performance:"))
                 rc1, rc2, rc3 = st.columns(3)
@@ -2333,7 +2220,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                     """
                     print_button_js(doc_html, tr("🖨️ پرنٹ ACR", "🖨️ Print ACR"), landscape=False)
 
-            # 🟢 5. سیلری سرٹیفکیٹ (Salary Certificate)
+            # 🟢 5. سیلری سرٹیفکیٹ
             elif doc_type == "Salary Certificate":
                 st.info(tr("مہینہ اور مقصد درج کریں:", "Enter month and purpose:"))
                 sc1, sc2 = st.columns(2)
@@ -2379,7 +2266,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                     """
                     print_button_js(doc_html, tr("🖨️ پرنٹ سیلری سرٹیفکیٹ", "🖨️ Print Salary Certificate"), landscape=False)
 
-            # 🟢 6. وارننگ لیٹر (Warning Letter)
+            # 🟢 6. شوکاز / وارننگ
             elif doc_type == "Warning / Show Cause Notice":
                 st.error(tr("وارننگ کی وجہ اور تفصیل درج کریں:", "Enter warning reason and details:"))
                 warn_reason = st.text_input(tr("مختصر وجہ (Reason)", "Short Reason"), value="Disciplinary Violation / Unapproved Absences" if is_eng else "ڈسپلن کی خلاف ورزی / غیر منظور شدہ چھٹیاں")
@@ -2427,7 +2314,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                     """
                     print_button_js(doc_html, tr("🖨️ پرنٹ وارننگ لیٹر", "🖨️ Print Warning Letter"), landscape=False)
 
-            # 🟢 7. ٹرمینیشن لیٹر (Termination Letter)
+            # 🟢 7. ٹرمینیشن لیٹر
             elif doc_type == "Termination Letter":
                 st.error(tr("برخاستگی کی تفصیلات درج کریں:", "Enter termination details:"))
                 term_date = st.date_input(tr("آخری دن (Effective Date)", "Effective Date"), value=datetime.date.today())
@@ -2474,12 +2361,11 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                     </div>
                     """
                     print_button_js(doc_html, tr("🖨️ پرنٹ ٹرمینیشن لیٹر", "🖨️ Print Termination Letter"), landscape=False)
-
         else:
             st.warning(tr("ڈیٹا بیس میں کوئی سٹاف موجود نہیں۔", "No staff found in database."))
 
 # ================= 5. حاضری سسٹم =================
-elif core_choice == "Attendance":
+elif core_choice in ["Attendance", "حاضری سسٹم"]:
     st.markdown(f"<h2 class='no-print'>📋 {tr('حاضری مینجمنٹ', 'Attendance Management')} - {tr(sub_choice, sub_choice)}</h2>", unsafe_allow_html=True)
     
     st.markdown("""
@@ -2508,25 +2394,13 @@ elif core_choice == "Attendance":
         else:
             return "حاضر" if stat=="Present" else "غیر حاضر" if stat=="Absent" else "چھٹی" if stat=="Leave" else stat
 
-    if sub_choice == "Student Attendance":
+    if sub_choice in ["Student Attendance", "طالب علم کی حاضری"]:
         st.markdown(f"### {tr('طلباء کی حاضری لگائیں', 'Mark Student Attendance')}")
         c_att1, c_att2 = st.columns(2)
         att_class = c_att1.selectbox(tr("کلاس منتخب کریں", "Select Class"), classes_list, key="att_stu_cls")
         att_date = c_att2.date_input(tr("تاریخ", "Date"), datetime.date.today(), key="att_stu_date")
 
-        # 🟢 کریش پروف سٹوڈنٹ لسٹ (اگر name_en کالم موجود نہ ہو تو ایپ بند نہیں ہوگی)
-        try:
-            local_conn = get_db_connection()
-            # پہلی کوشش: انگلش نام والے کالم کے ساتھ
-            stu_df = pd.read_sql(f"SELECT reg_id, name, name_en FROM students WHERE class='{att_class}' AND status='Active'", local_conn)
-        except Exception:
-            try:
-                # دوسری کوشش: بغیر name_en کے (اگر پرانا ڈیٹا بیس ہے)
-                stu_df = pd.read_sql(f"SELECT reg_id, name FROM students WHERE class='{att_class}' AND status='Active'", local_conn)
-            except Exception:
-                # 🟢 اگر کوئی اور بھی مسئلہ ہو تو کریش ہونے کے بجائے خالی لسٹ بن جائے گی
-                import pandas as pd
-                stu_df = pd.DataFrame()
+        stu_df = pd.read_sql(f"SELECT reg_id, name, name_en FROM students WHERE class='{att_class}' AND status='Active'", conn)
         if not stu_df.empty:
             existing_att = pd.read_sql(f"SELECT person_id, status FROM attendance WHERE date='{att_date.strftime('%Y-%m-%d')}' AND type='طالب علم'", conn)
             att_map = dict(zip(existing_att['person_id'], existing_att['status']))
@@ -2552,7 +2426,7 @@ elif core_choice == "Attendance":
         else:
             st.info(tr("اس کلاس میں کوئی ایکٹو طالب علم نہیں ہے۔", "No active students in this class."))
 
-    elif sub_choice == "Staff Attendance":
+    elif sub_choice in ["Staff Attendance", "سٹاف کی حاضری"]:
         st.markdown(f"### {tr('سٹاف کی حاضری لگائیں', 'Mark Staff Attendance')}")
         att_date_stf = st.date_input(tr("تاریخ", "Date"), datetime.date.today(), key="att_stf_date")
         stf_df = pd.read_sql("SELECT staff_id, name, name_en, designation FROM staff", conn)
@@ -2583,12 +2457,10 @@ elif core_choice == "Attendance":
         else:
             st.info(tr("سٹاف کا کوئی ریکارڈ نہیں ملا۔", "No staff records found."))
 
-    # 🟢 سمارٹ کیو-آر سکینر حاضری 
     elif sub_choice in ["Smart QR Attendance", "سمارٹ کیو-آر حاضری"]:
         st.markdown(f"### 📷 {tr('کیو-آر کوڈ / بارکوڈ سکینر حاضری', 'QR / Barcode Smart Attendance')}")
         st.info(tr("سکینر سے بچے یا سٹاف کا آئی ڈی کارڈ سکین کریں۔ حاضری خود بخود 'حاضر (Present)' لگ جائے گی۔", "Scan the student/staff ID card. Attendance will be marked as 'Present' automatically."))
         
-        # فوکس کو ان پٹ پر رکھنے کے لیے جاوا سکرپٹ (تاکہ سکینر براہ راست کام کرے)
         components.html("""
         <script>
         setTimeout(function() {
@@ -2633,7 +2505,7 @@ elif core_choice == "Attendance":
                     else:
                         st.warning(tr("غلط کیو-آر کوڈ! براہ کرم سکول کا جاری کردہ کارڈ سکین کریں۔", "Invalid QR Code! Please scan the official school ID card."))
 
-    elif sub_choice == "Attendance Report & Print":
+    elif sub_choice in ["Attendance Report & Print", "حاضری رپورٹ و پرنٹ"]:
         st.markdown(f"### {tr('حاضری کی رپورٹ اور پرنٹ', 'Attendance Report & Print')}")
         st.markdown("<div class='no-print'>", unsafe_allow_html=True)
         r_type = st.radio(tr("رپورٹ کی قسم", "Report Type"), [tr("طلباء (Students)", "Students"), tr("سٹاف (Staff)", "Staff")], horizontal=True)
@@ -2646,20 +2518,7 @@ elif core_choice == "Attendance":
             q_stu = f"SELECT a.date, a.person_id, s.name, s.name_en, s.class, a.status FROM attendance a JOIN students s ON a.person_id = s.reg_id WHERE a.type='طالب علم' AND a.date='{rep_date.strftime('%Y-%m-%d')}'"
             if rep_class != "All": q_stu += f" AND s.class='{rep_class}'"
             
-            # 🟢 کریش پروف رپورٹنگ کیوری (Crash-proof Query)
-        try:
-            local_conn = get_db_connection()
-            rep_df = pd.read_sql(q_stu, local_conn)
-        except Exception:
-            try:
-                # 🟢 اگر کوئی خاص کالم نہ ملے، تو سمارٹ طریقے سے موجودہ تمام کالمز نکال لے گا
-                import re
-                fallback_q = re.sub(r'SELECT.*?FROM', 'SELECT * FROM', q_stu, flags=re.IGNORECASE)
-                rep_df = pd.read_sql(fallback_q, local_conn)
-            except Exception:
-                # 🟢 اگر پھر بھی کوئی مسئلہ ہو تو خالی رپورٹ دکھا دے گا مگر ایپ بند نہیں ہوگی
-                import pandas as pd
-                rep_df = pd.DataFrame()
+            rep_df = pd.read_sql(q_stu, conn)
             if not rep_df.empty:
                 rep_df['Name'] = rep_df.apply(lambda row: get_disp_val(row['name'], row.get('name_en')), axis=1)
                 
@@ -2679,11 +2538,13 @@ elif core_choice == "Attendance":
                 
                 t = {"align": "left", "dir": "ltr"} if st.session_state.ui_lang == "English" else {"align": "right", "dir": "rtl"}
                 
+                logo_html = f'<img src="{logo_src_b64}" style="width: 50px; height: 50px; object-fit: contain;">' if logo_src_b64 else '<div style="font-size:28px;">🏫</div>'
+                
                 print_html = f'''
                 <div style="width: 100%; font-family: Arial, sans-serif;" dir="{t['dir']}">
                 <table style="width:100%; border:none; margin-bottom: 15px;">
                 <tr>
-                <td style="width: 15%; text-align: {t['align']}; vertical-align: middle;">{logo_base64_html}</td>
+                <td style="width: 15%; text-align: {t['align']}; vertical-align: middle;">{logo_html}</td>
                 <td style="width: 70%; text-align: center; vertical-align: middle;">
                 <h2 style="margin: 0; font-size: 24px; color: #1a4f8b;">{school_name.upper()}</h2>
                 <p style="margin: 4px 0; font-weight: bold; font-size: 12px;">{school_address}</p>
@@ -2719,12 +2580,13 @@ elif core_choice == "Attendance":
                 html_table = html_table.replace('<td>حاضر</td>', '<td><span style="color:green;font-weight:bold;">حاضر</span></td>').replace('<td>غیر حاضر</td>', '<td><span style="color:red;font-weight:bold;">غیر حاضر</span></td>').replace('<td>چھٹی</td>', '<td><span style="color:orange;font-weight:bold;">چھٹی</span></td>')
                 
                 t = {"align": "left", "dir": "ltr"} if st.session_state.ui_lang == "English" else {"align": "right", "dir": "rtl"}
+                logo_html = f'<img src="{logo_src_b64}" style="width: 50px; height: 50px; object-fit: contain;">' if logo_src_b64 else '<div style="font-size:28px;">🏫</div>'
                 
                 print_html = f'''
                 <div style="width: 100%; font-family: Arial, sans-serif;" dir="{t['dir']}">
                 <table style="width:100%; border:none; margin-bottom: 15px;">
                 <tr>
-                <td style="width: 15%; text-align: {t['align']}; vertical-align: middle;">{logo_base64_html}</td>
+                <td style="width: 15%; text-align: {t['align']}; vertical-align: middle;">{logo_html}</td>
                 <td style="width: 70%; text-align: center; vertical-align: middle;">
                 <h2 style="margin: 0; font-size: 24px; color: #1a4f8b;">{school_name.upper()}</h2>
                 <p style="margin: 4px 0; font-weight: bold; font-size: 12px;">{school_address}</p>
@@ -2744,22 +2606,17 @@ elif core_choice == "Attendance":
             else:
                 st.warning(tr("اس تاریخ کی سٹاف کی کوئی حاضری محفوظ نہیں ہے۔", "No staff attendance saved for this date."))
 
-elif core_choice in ["چھٹی کی درخواستیں", "Leave Requests"]:
-    st.markdown(f"<h2 class='no-print'>📝 {tr('چھٹی کی درخواستیں', 'Leave Requests')}</h2>", unsafe_allow_html=True)
-    
-    # 🟢 یہاں کوئی فالتو try نہیں ہے، سیدھا کریش پروف کوڈ شروع ہو رہا ہے
-    try:
-        local_conn = get_db_connection()
-        leave_q = "SELECT lr.id, lr.reg_id, s.name, s.name_en, s.class, s.section, lr.date, lr.reason, lr.status, lr.admin_remarks FROM leave_requests lr JOIN students s ON lr.reg_id = s.reg_id ORDER BY lr.id DESC"
-        requests_df = pd.read_sql(leave_q, local_conn)
-    except Exception:
+    elif sub_choice in ["Leave Requests", "چھٹی کی درخواستیں"]:
+        st.markdown(f"### ✉️ {tr('طلباء کی چھٹی کی درخواستیں', 'Students Leave Requests')}")
+        st.info(tr("یہاں آپ والدین کی طرف سے آن لائن بھیجی گئی چھٹی کی درخواستیں دیکھ سکتے ہیں اور انہیں منظور (Approve) یا مسترد (Reject) کر سکتے ہیں۔ منظور کرنے پر حاضری شیٹ میں خودکار 'چھٹی' لگ جائے گی۔", "Here you can view, approve, or reject leave requests sent by parents. Approving will automatically mark 'Leave' in the attendance sheet."))
+        
         try:
-            local_conn = get_db_connection()
-            leave_q_fallback = "SELECT lr.id, lr.reg_id, s.name, s.class, lr.date, lr.reason, lr.status, lr.admin_remarks FROM leave_requests lr JOIN students s ON lr.reg_id = s.reg_id ORDER BY lr.id DESC"
-            requests_df = pd.read_sql(leave_q_fallback, local_conn)
-        except Exception:
-            import pandas as pd
-            requests_df = pd.DataFrame()
+            cursor.execute("CREATE TABLE IF NOT EXISTS leave_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, reg_id TEXT, date TEXT, reason TEXT, status TEXT DEFAULT 'Pending')")
+            try: cursor.execute("ALTER TABLE leave_requests ADD COLUMN admin_remarks TEXT")
+            except: pass
+            conn.commit()
+            
+            req_df = pd.read_sql("SELECT lr.id, lr.reg_id, s.name, s.name_en, s.class, s.section, lr.date, lr.reason, lr.status, lr.admin_remarks FROM leave_requests lr JOIN students s ON lr.reg_id = s.reg_id ORDER BY lr.id DESC", conn)
             
             if not req_df.empty:
                 pending_reqs = req_df[req_df['status'] == 'Pending']
@@ -2779,10 +2636,7 @@ elif core_choice in ["چھٹی کی درخواستیں", "Leave Requests"]:
                                 
                                 c_btn1, c_btn2, _ = st.columns([1, 1, 2])
                                 if c_btn1.button("✅ " + tr("منظور کریں (Approve)", "Approve"), key=f"app_{r['id']}", type="primary"):
-                                    # 1. درخواست کا سٹیٹس اپڈیٹ کرنا
                                     cursor.execute(f"UPDATE leave_requests SET status='Approved', admin_remarks='چھٹی منظور کر لی گئی ہے۔' WHERE id={r['id']}")
-                                    
-                                    # 2. آٹو حاضری (اس دن کی حاضری میں خودکار چھٹی لگانا)
                                     cursor.execute("DELETE FROM attendance WHERE date=? AND type='طالب علم' AND person_id=?", (r['date'], r['reg_id']))
                                     cursor.execute("INSERT INTO attendance (date, type, person_id, status) VALUES (?, 'طالب علم', ?, 'Leave')", (r['date'], r['reg_id']))
                                     conn.commit()
@@ -2821,24 +2675,21 @@ elif core_choice in ["چھٹی کی درخواستیں", "Leave Requests"]:
             st.error(f"Error loading requests: {e}")
 
 # ================= 6. فیس، رسیدیں، سیلری =================
-elif core_choice == "Fee & Salary":
+elif core_choice in ["Fee & Salary", "فیس، رسیدیں، سیلری"]:
     st.markdown(f"<h2 class='no-print'>💵 {tr('فیس چالان، رسیدیں اور سٹاف سیلری', 'Fee Challan, Receipts & Staff Salary')} - {tr(sub_choice, sub_choice)}</h2>", unsafe_allow_html=True)
     
-    # 🟢 اپڈیٹڈ فنکشن: اب یہ ایکسٹرا چارجز (extra_charges_dict) کو بھی وصول کرے گا
     def get_single_challan_row(s_reg, s_name, s_fname, s_class_name, s_section, t_fee, arrears, advance, total_amt, inv_no, issue_dt, due_dt, g_month, g_year, logo_src, school_name, discount_amt, extra_charges_dict):
         instructions_text = "The last date for payment of the monthly fee and other dues will be the 10th of every month.<br>If the dues are paid after the 10th, a late fee of Rs. 10 per day will be charged.<br>Full payment of all outstanding dues is required to receive examination results, certificates, or any other necessary school documents.<br>In case of any genuine difficulty or special circumstances, parents are requested to contact the school administration in advance.<br>Please make sure to obtain a receipt when paying the fee and keep it safe for future reference."
         
         late_fee_amt = max(0, total_amt + 10)
         t_fee_disc = t_fee + discount_amt
         
-        # 🟢 نئے شامل کیے گئے چارجز کا HTML بنانا
         extra_rows_html = ""
         if extra_charges_dict:
             for charge_name, charge_amt in extra_charges_dict.items():
                 extra_rows_html += f"<tr><td style='border: 1px solid #ccc; padding: 5px;'>{charge_name}</td><td style='border: 1px solid #ccc; padding: 5px; text-align: right;'>{charge_amt} PKR</td></tr>"
         
         html_row = '<table style="width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 15px; page-break-after: always;"><tr>'
-        
         logo_html = f'<img src="{logo_src}" style="height: 25px; float: left; margin-right: 8px; object-fit: contain;">' if logo_src else ''
         
         for copy_name in ["School", "Bank", "Parents"]:
@@ -2884,7 +2735,7 @@ elif core_choice == "Fee & Salary":
         html_row += '</tr></table>'
         return html_row
 
-    if sub_choice == "Generate Fee Challans":
+    if sub_choice in ["Generate Fee Challans", "📄 چالان بنائیں"]:
         c1, c2, c3 = st.columns(3)
         g_class = c1.selectbox(tr("کلاس", "Class"), ["All"] + classes_list)
         g_month = c2.selectbox(tr("مہینہ", "Month"), months_en)
@@ -2895,7 +2746,6 @@ elif core_choice == "Fee & Salary":
         
         st.write("---")
         
-        # 🟢 نیا فیچر: ڈراپ ڈاؤن چارجز سلیکشن
         st.markdown(f"#### &#128176; {tr('اضافی چارجز شامل کریں (اختیاری)', 'Add Extra Charges (Optional)')}", unsafe_allow_html=True)
         charge_options_ur = ["ٹرانسپورٹ چارجز", "چھٹیوں کا جرمانہ", "لیٹ فیس جرمانہ", "سالانہ فنڈ", "ماہانہ فنڈ", "امتحانی فیس", "کتابیں اور سٹیشنری", "آئی ڈی کارڈ فیس", "سپورٹس فنڈ", "دیگر (خود لکھیں)"]
         charge_options_en = ["Transport Charges", "Absence Fine", "Late Fine", "Annual Fund", "Monthly Fund", "Exam Fee", "Books & Stationery", "ID Card Fee", "Sports Fund", "Other (Custom)"]
@@ -2911,11 +2761,8 @@ elif core_choice == "Fee & Salary":
             
             for charge in selected_charges:
                 if charge in ["Other (Custom)", "دیگر (خود لکھیں)"]:
-                    # پہلا خانہ: یہاں آپ اپنی مرضی کا نام لکھیں گے (جو چالان پر چھپے گا)
                     cust_name = cols[col_idx % 3].text_input(tr("یہاں چارج کا نام خود لکھیں", "Write Charge Name Here"), placeholder="مثلاً: ٹرپ فیس، پارٹی فنڈ وغیرہ")
-                    # دوسرا خانہ: یہاں صرف اس چارج کی رقم لکھی جائے گی
                     cust_amt = cols[col_idx % 3].number_input(tr("اس کی رقم (Rs)", "Charge Amount (Rs)"), min_value=0, value=0, step=50)
-                    
                     if cust_name.strip() and cust_amt > 0:
                         extra_charges_dict[cust_name.strip()] = cust_amt
                 else:
@@ -2934,7 +2781,7 @@ elif core_choice == "Fee & Salary":
             
             if not students_df.empty:
                 full_html = ""
-                extra_total = sum(extra_charges_dict.values()) # 🟢 اضافی چارجز کا ٹوٹل
+                extra_total = sum(extra_charges_dict.values())
                 
                 for i, row in students_df.iterrows():
                     s_reg, s_class = row['reg_id'], row['class']
@@ -2944,10 +2791,9 @@ elif core_choice == "Fee & Salary":
                     t_fee, arrears = safe_int(row['monthly_fee']), safe_int(row['arrears'])
                     advance, discount_amt = safe_int(row.get('advance_fee', 0)), safe_int(row.get('discount', 0))
                     
-                    # 🟢 ٹوٹل فیس میں ایکسٹرا چارجز شامل کیے گئے
                     total_amt = max(0, t_fee + extra_total + arrears - advance)
                     inv_no = f"{g_year}{g_month}{s_reg}"
-                    issue_dt = today_date
+                    issue_dt = datetime.date.today().strftime('%Y-%m-%d')
                     due_dt = g_due.strftime("%d %b %Y")
                     fee_month_str = f"{g_month}-{g_year}"
                     
@@ -2963,7 +2809,7 @@ elif core_choice == "Fee & Salary":
                         elif existing_status[0] == 'Unpaid': 
                             cursor.execute("UPDATE fees SET tuition=?, arrears_col=?, total=?, due_date=?, date=? WHERE invoice_no=?", (t_fee, arrears, total_amt, str(g_due), issue_dt, inv_no))
                         conn.commit()
-                        # 🟢 ایکسٹرا چارجز ڈکشنری فنکشن میں بھیجی گئی
+                        
                         full_html += get_single_challan_row(s_reg, s_name, s_fname, s_class, s_sec, t_fee, arrears, advance, total_amt, inv_no, issue_dt, due_dt, g_month, g_year, logo_src_b64, school_name, discount_amt, extra_charges_dict)
                 
                 if full_html != "":
@@ -2971,7 +2817,7 @@ elif core_choice == "Fee & Salary":
                     st.success(tr(f"✅ {len(students_df)} چالان تیار ہیں!", f"✅ {len(students_df)} Challans Generated! Click the Blue Print button above."))
             else: st.warning(tr("طالب علم نہیں ملا۔", "No students found."))
 
-    elif sub_choice == "Collect Fees":
+    elif sub_choice in ["Collect Fees", "💰 فیس وصولی"]:
         tab_collect, tab_ledger = st.tabs(["💰 فیس وصولی (Fee Collection)", "📖 سٹوڈنٹ لیجر کھاتا (Student Ledger)"])
         
         with tab_collect:
@@ -3017,7 +2863,7 @@ elif core_choice == "Fee & Salary":
                                     reg = inv_df[inv_df['invoice_no'] == inv]['reg_id'].iloc[0]
                                     cursor.execute("UPDATE fees SET status='Paid' WHERE invoice_no=?", (inv,))
                                     v_num = pd.read_sql("SELECT COUNT(*) FROM accounts", conn).iloc[0, 0] + 1001
-                                    cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, 'آمدنی', ?, ?, 'Fee Collection', ?)", (today_date, f"Fee Inv: {inv}", amt, f"V-{v_num}"))
+                                    cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, 'آمدنی', ?, ?, 'Fee Collection', ?)", (datetime.date.today().strftime('%Y-%m-%d'), f"Fee Inv: {inv}", amt, f"V-{v_num}"))
                                     cursor.execute(f"UPDATE students SET arrears=0, advance_fee=0 WHERE reg_id='{reg}'")
                             conn.commit()
                             st.success("Selected invoices have been marked as PAID successfully!")
@@ -3048,7 +2894,7 @@ elif core_choice == "Fee & Salary":
                             cursor.execute("UPDATE students SET arrears=?, advance_fee=? WHERE reg_id=?", (new_arrears, new_advance, s_reg))
                             cursor.execute("UPDATE fees SET status='Paid', total=? WHERE invoice_no=?", (received_amt, s_inv))
                             v_num = pd.read_sql("SELECT COUNT(*) FROM accounts", conn).iloc[0, 0] + 1001
-                            cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, 'آمدنی', ?, ?, 'Fee Collection', ?)", (today_date, f"Custom Fee: {s_inv}", received_amt, f"V-{v_num}"))
+                            cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, 'آمدنی', ?, ?, 'Fee Collection', ?)", (datetime.date.today().strftime('%Y-%m-%d'), f"Custom Fee: {s_inv}", received_amt, f"V-{v_num}"))
                             conn.commit()
                             st.success(tr("فیس کامیابی سے جمع ہو گئی اور لیجر اپڈیٹ ہو گیا!", "Fee collected and ledger updated!"))
                             st.rerun()
@@ -3088,7 +2934,7 @@ elif core_choice == "Fee & Salary":
             else:
                 st.warning("اس کلاس میں کوئی طالبعلم موجود نہیں۔")
 
-    elif sub_choice == "Arrears & Advance":
+    elif sub_choice in ["Arrears & Advance", "🔴 بقایا اور ایڈوانس"]:
         st.markdown("### ⚠️ سکول کے تمام بقایا جات اور ایڈوانس (All Defaulters & Advance Holders)")
         st.write("یہاں آپ پورے سکول کے ان طالب علموں کی لسٹ دیکھ سکتے ہیں جن کے ذمے پچھلے مہینوں کے بقایا جات ہیں یا جنہوں نے ایڈوانس فیس دی ہوئی ہے۔")
         
@@ -3116,7 +2962,7 @@ elif core_choice == "Fee & Salary":
         else:
             st.success("الحمدللہ! کسی طالب علم کے ذمے کوئی بقایا جات نہیں ہیں۔")
 
-    elif sub_choice == "Discount Mgt":
+    elif sub_choice in ["Discount Mgt", "🎁 ڈسکاؤنٹ"]:
         c_d1, c_d2, c_d3, c_d4 = st.columns(4)
         disc_type = c_d1.selectbox(tr("ڈسکاؤنٹ کی قسم *", "Give discount to *"), ["One student", "Sibling", "Staff Child", "Other"])
         disc_class = c_d2.selectbox(tr("کلاس *", "Class *"), classes_list, key='disc_cls')
@@ -3150,7 +2996,7 @@ elif core_choice == "Fee & Salary":
                 st.success(tr("ڈسکاؤنٹ کامیابی سے لاگو ہو گیا!", "Discount applied successfully!"))
         else: st.warning(tr("اس کلاس میں کوئی طالب علم موجود نہیں۔", "No student found in this class."))
 
-    elif sub_choice == "Pay Salary":
+    elif sub_choice in ["Pay Salary", "📊 سٹاف سیلری"]:
         tab_sal, tab_stf_ledg = st.tabs(["💳 تنخواہ اور ایڈوانس (Pay Salary / Advance)", "📖 سٹاف لیجر (Staff Ledger)"])
         
         with tab_sal:
@@ -3193,8 +3039,8 @@ elif core_choice == "Fee & Salary":
                                     st.error(f"⚠️ اس سٹاف ممبر کی {sal_month} کی تنخواہ پہلے ہی ادا ہو چکی ہے!")
                                 else:
                                     v_num = pd.read_sql("SELECT COUNT(*) FROM accounts", conn).iloc[0, 0] + 1001
-                                    cursor.execute("INSERT INTO salary_records VALUES (?, ?, ?, ?, ?)", (today_date, exact_id, sal_month, net_payable, "Salary"))
-                                    cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, 'خرچ', ?, ?, 'Staff Salary', ?)", (today_date, f"Salary - {p_sid_name} ({sal_month})", net_payable, f"V-{v_num}"))
+                                    cursor.execute("INSERT INTO salary_records VALUES (?, ?, ?, ?, ?)", (datetime.date.today().strftime('%Y-%m-%d'), exact_id, sal_month, net_payable, "Salary"))
+                                    cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, 'خرچ', ?, ?, 'Staff Salary', ?)", (datetime.date.today().strftime('%Y-%m-%d'), f"Salary - {p_sid_name} ({sal_month})", net_payable, f"V-{v_num}"))
                                     cursor.execute(f"UPDATE staff SET advance_salary=0 WHERE staff_id='{exact_id}'")
                                     conn.commit()
                                     st.success(f"تنخواہ کامیابی سے ادا کر دی گئی! (غیر حاضری کی کٹوتی: Rs {absent_deduction})")
@@ -3211,8 +3057,8 @@ elif core_choice == "Fee & Salary":
                             curr_adv = safe_int(staff_list_df[staff_list_df['name'] == adv_sid_name].iloc[0].get('advance_salary', 0))
                             v_num = pd.read_sql("SELECT COUNT(*) FROM accounts", conn).iloc[0, 0] + 1001
                             
-                            cursor.execute("INSERT INTO salary_records VALUES (?, ?, ?, ?, ?)", (today_date, adv_id, sal_month, adv_amt, "Advance"))
-                            cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, 'خرچ', ?, ?, 'Staff Salary', ?)", (today_date, f"Advance - {adv_sid_name}", adv_amt, f"V-{v_num}"))
+                            cursor.execute("INSERT INTO salary_records VALUES (?, ?, ?, ?, ?)", (datetime.date.today().strftime('%Y-%m-%d'), adv_id, sal_month, adv_amt, "Advance"))
+                            cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, 'خرچ', ?, ?, 'Staff Salary', ?)", (datetime.date.today().strftime('%Y-%m-%d'), f"Advance - {adv_sid_name}", adv_amt, f"V-{v_num}"))
                             cursor.execute(f"UPDATE staff SET advance_salary={curr_adv + adv_amt} WHERE staff_id='{adv_id}'")
                             conn.commit()
                             st.success(f"{adv_amt} روپے ایڈوانس کے طور پر لیجر میں شامل ہو گئے۔")
@@ -3239,7 +3085,7 @@ elif core_choice == "Fee & Salary":
                 else:
                     st.info("اس سٹاف ممبر کی کوئی پرانی ہسٹری موجود نہیں۔")
 
-    elif sub_choice == "Salary Slips":
+    elif sub_choice in ["Salary Slips", "🖨️ سیلری سلپس"]:
         c_sl1, c_sl2 = st.columns(2)
         slip_month_sel = c_sl1.selectbox(tr("مہینہ", "Month"), months_en, key="slip_month_sel_bulk")
         slip_year_sel = c_sl2.text_input("Year", "2026", key="slip_year")
@@ -3312,7 +3158,7 @@ elif core_choice == "Fee & Salary":
                     status = "PAID" if not paid_record.empty else "UNPAID"
                     net_payable = max(0, base_salary - stf_advance) if status == "UNPAID" else safe_int(paid_record.iloc[0]['amount'])
                     
-                    full_html += get_single_salary_slip_html_local(slip_no, datetime.datetime.strptime(today_date, "%Y-%m-%d").strftime("%d %b %Y"), full_emp_name, designation, month_year, base_salary, stf_advance if status == "UNPAID" else 0, net_payable, status, logo_src_b64)
+                    full_html += get_single_salary_slip_html_local(slip_no, datetime.date.today().strftime("%d %b %Y"), full_emp_name, designation, month_year, base_salary, stf_advance if status == "UNPAID" else 0, net_payable, status, logo_src_b64)
                 
                 print_button_js(full_html, tr("تنخواہ سلپس پرنٹ کریں", "Print Salary Slips Now"), landscape=True)
                 st.success(f"✅ {len(all_staff)} Salary Slips Generated! Click the Blue Print button above.")
@@ -3424,25 +3270,25 @@ elif core_choice == "Fee & Salary":
 # ================= 7. اکاؤنٹس اور رپورٹس =================
 elif core_choice in ["اکاؤنٹس اور رپورٹس", "Accounts"]:
     st.markdown(f"<h2 class='no-print'>📈 {tr('اکاؤنٹس اور رپورٹس', 'Accounts & Reports')} - {tr(sub_choice, sub_choice)}</h2>", unsafe_allow_html=True)
-    
+
     # --- ذیلی مینیو 1: روزانہ کی رپورٹ ---
     if sub_choice in ["Daily Report", "روزانہ کی رپورٹ"]:
         st.markdown(f"### 📅 {tr('روزانہ کا حساب کتاب', 'Daily Accounts Report')}")
-        
+
         with st.expander(tr("➕ نیا خرچ یا آمدنی درج کریں (Add Manual Entry)", "➕ Add Manual Entry")):
             with st.form("manual_entry_form", clear_on_submit=True):
                 c_me1, c_me2 = st.columns(2)
                 me_type = c_me1.selectbox(tr("قسم", "Type"), [tr("آمدنی", "Income"), tr("خرچ", "Expense")])
                 me_amount = c_me2.number_input(tr("رقم (Amount)", "Amount"), min_value=1, value=100)
-                
+
                 me_head = st.selectbox(tr("مد (Head)", "Head"), ["Utility Bills", "Maintenance", "Stationery", "Entertainment", "Miscellaneous", "Donation/Other Income"])
                 me_desc = st.text_input(tr("تفصیل (Description)", "Description"), placeholder="مثلاً: بجلی کا بل یا مہمانوں کی چائے")
                 me_date = st.date_input(tr("تاریخ", "Date"), datetime.date.today())
-                
+
                 if st.form_submit_button(tr("محفوظ کریں", "Save Entry"), type="primary"):
                     v_num = pd.read_sql("SELECT COUNT(*) FROM accounts", conn).iloc[0, 0] + 1001
                     db_type = 'آمدنی' if "آمدنی" in me_type or "Income" in me_type else 'خرچ'
-                    
+
                     cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, ?, ?, ?, ?, ?)", 
                                    (me_date.strftime("%Y-%m-%d"), db_type, me_desc, me_amount, me_head, f"V-{v_num}"))
                     conn.commit()
@@ -3452,25 +3298,25 @@ elif core_choice in ["اکاؤنٹس اور رپورٹس", "Accounts"]:
         st.write("---")
         rep_date = st.date_input(tr("رپورٹ کی تاریخ منتخب کریں", "Select Date for Report"), datetime.date.today())
         rep_date_str = rep_date.strftime("%Y-%m-%d")
-        
+
         acc_df = pd.read_sql(f"SELECT voucher_no, type, head_name, description, amount FROM accounts WHERE date='{rep_date_str}'", conn)
-        
+
         if not acc_df.empty:
             if st.session_state.ui_lang == "اردو":
                 acc_df = acc_df.rename(columns={'voucher_no': 'واؤچر نمبر', 'type': 'قسم', 'head_name': 'مد (Head)', 'description': 'تفصیل', 'amount': 'رقم'})
-            
+
             st.dataframe(acc_df, use_container_width=True, hide_index=True)
-            
+
             type_col = 'قسم' if st.session_state.ui_lang == "اردو" else 'type'
             amt_col = 'رقم' if st.session_state.ui_lang == "اردو" else 'amount'
-            
+
             income_mask = acc_df[type_col].isin(['آمدنی', 'Income'])
             expense_mask = acc_df[type_col].isin(['خرچ', 'Expense'])
-            
+
             total_income = acc_df[income_mask][amt_col].sum() if not acc_df[income_mask].empty else 0
             total_expense = acc_df[expense_mask][amt_col].sum() if not acc_df[expense_mask].empty else 0
             net_balance = total_income - total_expense
-            
+
             c1, c2, c3 = st.columns(3)
             c1.metric(tr("کل آمدنی (Total Income)", "Total Income"), f"Rs {total_income}")
             c2.metric(tr("کل خرچ (Total Expense)", "Total Expense"), f"Rs {total_expense}")
@@ -3481,32 +3327,32 @@ elif core_choice in ["اکاؤنٹس اور رپورٹس", "Accounts"]:
     # --- ذیلی مینیو 2: ماہانہ رپورٹ ---
     elif sub_choice in ["Monthly Report", "ماہانہ رپورٹ"]:
         st.markdown(f"### 🗓️ {tr('ماہانہ حساب کتاب', 'Monthly Accounts Report')}")
-        
+
         c_m1, c_m2 = st.columns(2)
         m_opts = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
         curr_month = datetime.date.today().strftime("%m")
         rep_month = c_m1.selectbox(tr("مہینہ منتخب کریں", "Select Month"), m_opts, index=m_opts.index(curr_month) if curr_month in m_opts else 0)
         rep_year = c_m2.text_input(tr("سال (Year)", "Year"), value=str(datetime.date.today().year))
-        
+
         search_pattern = f"{rep_year}-{rep_month}-%"
         acc_m_df = pd.read_sql(f"SELECT date, voucher_no, type, head_name, description, amount FROM accounts WHERE date LIKE '{search_pattern}' ORDER BY date", conn)
-        
+
         if not acc_m_df.empty:
             if st.session_state.ui_lang == "اردو":
                 acc_m_df = acc_m_df.rename(columns={'date': 'تاریخ', 'voucher_no': 'واؤچر نمبر', 'type': 'قسم', 'head_name': 'مد (Head)', 'description': 'تفصیل', 'amount': 'رقم'})
-            
+
             st.dataframe(acc_m_df, use_container_width=True, hide_index=True)
-            
+
             type_col = 'قسم' if st.session_state.ui_lang == "اردو" else 'type'
             amt_col = 'رقم' if st.session_state.ui_lang == "اردو" else 'amount'
-            
+
             income_mask = acc_m_df[type_col].isin(['آمدنی', 'Income'])
             expense_mask = acc_m_df[type_col].isin(['خرچ', 'Expense'])
-            
+
             total_income = acc_m_df[income_mask][amt_col].sum() if not acc_m_df[income_mask].empty else 0
             total_expense = acc_m_df[expense_mask][amt_col].sum() if not acc_m_df[expense_mask].empty else 0
             net_balance = total_income - total_expense
-            
+
             st.write("---")
             c1, c2, c3 = st.columns(3)
             c1.metric(tr("ماہانہ آمدنی (Monthly Income)", "Monthly Income"), f"Rs {total_income}")
@@ -3517,41 +3363,40 @@ elif core_choice in ["اکاؤنٹس اور رپورٹس", "Accounts"]:
 
     # --- ذیلی مینیو 3: لیجر / کھاتہ (میگا لیجر سسٹم) ---
     elif sub_choice in ["Ledger", "لیجر / کھاتہ"]:
-        
+
         tab_stu, tab_stf, tab_gen = st.tabs([
             "🎓 " + tr("طالب علم کا لیجر", "Student Ledger"),
             "💼 " + tr("سٹاف کا لیجر", "Staff Ledger"),
             "🏛️ " + tr("سکول کا جنرل لیجر", "General Ledger")
         ])
-        
+
         with tab_stu:
             st.markdown(f"#### 🎓 {tr('انفرادی سٹوڈنٹ لیجر', 'Individual Student Ledger')}")
             db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
             if not db_cls: db_cls = classes_list
             c_l1, c_l2 = st.columns(2)
             l_cls = c_l1.selectbox(tr("کلاس", "Class"), db_cls, key="l_cls")
-            
+
             db_sec = pd.read_sql(f"SELECT section_name FROM sys_sections WHERE class_name='{l_cls}'", conn)['section_name'].tolist()
             if not db_sec: db_sec = ["A"]
             l_sec = c_l2.selectbox(tr("سیکشن", "Section"), db_sec, key="l_sec")
-            
+
             students_df = pd.read_sql(f"SELECT reg_id, name, fname, arrears, advance_fee FROM students WHERE class='{l_cls}' AND section='{l_sec}'", conn)
-            
+
             if not students_df.empty:
                 stu_opts = students_df.apply(lambda row: f"{row['reg_id']} - {row['name']} (S/O {row['fname']})", axis=1).tolist()
                 sel_stu = st.selectbox(tr("طالب علم منتخب کریں", "Select Student"), stu_opts)
                 sel_reg_id = sel_stu.split(" - ")[0]
-                
+
                 fee_records = pd.read_sql(f"SELECT month as 'Month', total as 'Total', CASE WHEN status='Paid' THEN total ELSE 0 END as 'Paid', CASE WHEN status='Unpaid' THEN total ELSE 0 END as 'Balance', status as 'Status', date as 'Date' FROM fees WHERE reg_id='{sel_reg_id}' ORDER BY rowid DESC", conn)
-                
+
                 stu_current_info = students_df[students_df['reg_id'] == sel_reg_id].iloc[0]
                 curr_arrears = stu_current_info['arrears']
                 curr_advance = stu_current_info.get('advance_fee', 0)
-                
+
                 total_billed = pd.read_sql(f"SELECT SUM(total) FROM fees WHERE reg_id='{sel_reg_id}'", conn).iloc[0,0] or 0
                 total_paid = pd.read_sql(f"SELECT SUM(total) FROM fees WHERE reg_id='{sel_reg_id}' AND status='Paid'", conn).iloc[0,0] or 0
-                
-                # 🟢 ایموجی (💰) کو محفوظ HTML کوڈ (&#128176;) سے بدل دیا گیا ہے
+
                 st.markdown(f"""
                 <div style='background-color:#f1f8e9; padding:20px; border-radius:10px; border:2px solid #8bc34a; text-align:center; margin-bottom: 20px;'>
                     <h3 style='margin:0; color:#33691e;'>&#128176; {tr('طالب علم کا مالیاتی خلاصہ', 'Student Ledger Summary')}</h3>
@@ -3576,7 +3421,7 @@ elif core_choice in ["اکاؤنٹس اور رپورٹس", "Accounts"]:
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-                
+
                 if not fee_records.empty:
                     st.markdown(f"#### 📜 {tr('پچھلے تمام چالان کی تفصیل', 'Challan History')}")
                     if st.session_state.ui_lang == "اردو":
@@ -3586,7 +3431,7 @@ elif core_choice in ["اکاؤنٹس اور رپورٹس", "Accounts"]:
                     st.info(tr("اس طالب علم کا کوئی فیس ریکارڈ / چالان موجود نہیں۔", "No fee record found for this student."))
             else:
                 st.info(tr("اس کلاس/سیکشن میں کوئی طالب علم نہیں۔", "No students in this class/section."))
-                
+
         with tab_stf:
             st.markdown(f"#### 💼 {tr('سٹاف کا انفرادی لیجر', 'Staff Individual Ledger')}")
             staff_df = pd.read_sql("SELECT staff_id, name, designation, advance_salary FROM staff", conn)
@@ -3594,10 +3439,9 @@ elif core_choice in ["اکاؤنٹس اور رپورٹس", "Accounts"]:
                 staff_opts = staff_df.apply(lambda row: f"{row['staff_id']} - {row['name']} ({row['designation']})", axis=1).tolist()
                 sel_staff = st.selectbox(tr("سٹاف ممبر منتخب کریں", "Select Staff"), staff_opts)
                 sel_staff_id = sel_staff.split(" - ")[0]
-                
+
                 curr_stf_adv = staff_df[staff_df['staff_id'] == sel_staff_id].iloc[0].get('advance_salary', 0)
-                
-                # 🟢 ایموجی (💸) کو محفوظ HTML کوڈ (&#128184;) سے بدل دیا گیا ہے
+
                 st.markdown(f"""
                 <div style='background-color:#e3f2fd; padding:20px; border-radius:10px; border:2px solid #2196f3; text-align:center; margin-bottom: 20px;'>
                     <h3 style='margin:0; color:#0d47a1;'>&#128184; {tr('سٹاف کا مالیاتی خلاصہ', 'Staff Ledger Summary')}</h3>
@@ -3606,45 +3450,45 @@ elif core_choice in ["اکاؤنٹس اور رپورٹس", "Accounts"]:
                     <p style='color:#555; font-size:12px;'>{tr('(یہ وہ رقم ہے جو سٹاف نے پیشگی لے رکھی ہے اور اگلی تنخواہوں سے کٹے گی)', '(This is the advance amount taken by staff, which will be deducted from upcoming salaries)')}</p>
                 </div>
                 """, unsafe_allow_html=True)
-                
+
                 stf_history = pd.read_sql(f"SELECT date as 'Date', month as 'Month', remarks as 'Type', amount as 'Amount' FROM salary_records WHERE staff_id='{sel_staff_id}' ORDER BY rowid DESC", conn)
-                
+
                 if not stf_history.empty:
                     st.markdown(f"#### 📜 {tr('تنخواہ اور ادائیگیوں کی ہسٹری', 'Payment History')}")
                     if st.session_state.ui_lang == "اردو":
                         stf_history = stf_history.rename(columns={'Date': 'تاریخ', 'Month': 'مہینہ', 'Type': 'قسم (تنخواہ/ایڈوانس)', 'Amount': 'رقم'})
-                        
+
                     st.dataframe(stf_history, use_container_width=True, hide_index=True)
                 else:
                     st.info(tr("اس سٹاف ممبر کا کوئی سیلری ریکارڈ موجود نہیں۔", "No salary record found for this staff member."))
             else:
                 st.info(tr("کوئی سٹاف موجود نہیں۔", "No staff found."))
-                
+
         with tab_gen:
             st.markdown(f"#### 🏛️ {tr('سکول کا جنرل لیجر / مکمل کھاتہ', 'School General Ledger')}")
             st.write(tr("یہاں سے آپ مخصوص تاریخوں کے درمیان سکول کی تمام آمدنی اور اخراجات دیکھ سکتے ہیں۔", "View all income and expenses between specific dates."))
-            
+
             c_gl1, c_gl2 = st.columns(2)
             gl_start = c_gl1.date_input(tr("شروع کی تاریخ (Start Date)", "Start Date"), datetime.date.today().replace(day=1), key="gl_s")
             gl_end = c_gl2.date_input(tr("ختم ہونے کی تاریخ (End Date)", "End Date"), datetime.date.today(), key="gl_e")
-            
+
             if gl_start > gl_end:
                 st.error(tr("شروع کی تاریخ ختم ہونے کی تاریخ سے پہلے ہونی چاہیے۔", "Start date must be before end date."))
             else:
                 gl_df = pd.read_sql(f"SELECT date, voucher_no, type, head_name, description, amount FROM accounts WHERE date BETWEEN '{gl_start.strftime('%Y-%m-%d')}' AND '{gl_end.strftime('%Y-%m-%d')}' ORDER BY date", conn)
-                
+
                 if not gl_df.empty:
                     if st.session_state.ui_lang == "اردو":
                         gl_df_display = gl_df.rename(columns={'date': 'تاریخ', 'voucher_no': 'واؤچر نمبر', 'type': 'قسم', 'head_name': 'مد (Head)', 'description': 'تفصیل', 'amount': 'رقم'})
                     else:
                         gl_df_display = gl_df
-                    
+
                     st.dataframe(gl_df_display, use_container_width=True, hide_index=True)
-                    
+
                     inc_total = gl_df[gl_df['type'].isin(['آمدنی', 'Income'])]['amount'].sum()
                     exp_total = gl_df[gl_df['type'].isin(['خرچ', 'Expense'])]['amount'].sum()
                     net_total = inc_total - exp_total
-                    
+
                     st.write("---")
                     g1, g2, g3 = st.columns(3)
                     g1.metric(tr("مجموعی آمدنی (Total Income)", "Total Income"), f"Rs {inc_total}")
@@ -3656,7 +3500,7 @@ elif core_choice in ["اکاؤنٹس اور رپورٹس", "Accounts"]:
 # ================= 8. تعلیمی نظام (Academics & Exams) =================
 elif core_choice in ["تعلیمی نظام", "Academics"]:
     st.markdown(f"<h2 class='no-print'>📚 {tr('تعلیمی اور امتحانی نظام', 'Academics & Examination System')} - {tr(sub_choice, sub_choice)}</h2>", unsafe_allow_html=True)
-    
+
     if sub_choice in ["Academic Sessions", "اکیڈمک سیشنز"]:
         st.markdown(f"<h2>📅 Academic Sessions</h2>", unsafe_allow_html=True)
         st.markdown(f"<p style='color:gray;'>Manage academic session years, switch the active session, or edit/delete existing sessions.</p>", unsafe_allow_html=True)
@@ -3677,10 +3521,10 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                         else:
                             cursor.execute("INSERT INTO academic_sessions VALUES (?, 'INACTIVE')", (new_session,))
                             conn.commit()
-                            
+
                             new_db_file = f'school_system_{new_session}.db'
                             shutil.copy2(DB_FILE, new_db_file)
-                            
+
                             new_conn = sqlite3.connect(new_db_file)
                             new_cursor = new_conn.cursor()
                             tables_to_clear = ['fees', 'accounts', 'attendance', 'salary_records', 'lesson_plan', 'exam_marks', 'timetable', 'notices']
@@ -3689,19 +3533,19 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                                 except: pass
                             new_conn.commit()
                             new_conn.close()
-                            
+
                             st.success(f"سیشن {new_session} کامیابی سے بن گیا!")
                             st.rerun()
                     else:
                         st.warning("Please enter a valid session name.")
-            
+
             st.write("---")
             st.markdown("### ✏️/🗑️ Edit or Delete Session")
             sessions_list = pd.read_sql("SELECT session_name FROM academic_sessions", conn)['session_name'].tolist()
             if sessions_list:
                 sel_edit_sess = st.selectbox("Select Session", sessions_list, key="edit_sess_sel")
                 new_sess_val = st.text_input("New Name (For Edit)", value=sel_edit_sess, key="new_sess_val")
-                
+
                 c_e1, c_e2 = st.columns(2)
                 if c_e1.button("✏️ Update Name", use_container_width=True):
                     if new_sess_val.strip() and new_sess_val != sel_edit_sess:
@@ -3711,17 +3555,17 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                         else:
                             cursor.execute("UPDATE academic_sessions SET session_name=? WHERE session_name=?", (new_sess_val.strip(), sel_edit_sess))
                             conn.commit()
-                            
+
                             old_file = 'school_system.db' if sel_edit_sess == '2026-27' else f'school_system_{sel_edit_sess}.db'
                             new_file = f'school_system_{new_sess_val.strip()}.db'
-                            
+
                             if os.path.exists(old_file):
                                 os.rename(old_file, new_file)
-                            
+
                             if active_session == sel_edit_sess:
                                 with open(SESSION_TRACKER_FILE, "w") as f:
                                     f.write(new_file)
-                                    
+
                             st.success("سیشن کا نام کامیابی سے تبدیل ہو گیا!")
                             st.rerun()
 
@@ -3731,45 +3575,44 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                     else:
                         cursor.execute("DELETE FROM academic_sessions WHERE session_name=?", (sel_edit_sess,))
                         conn.commit()
-                        
+
                         del_file = 'school_system.db' if sel_edit_sess == '2026-27' else f'school_system_{sel_edit_sess}.db'
                         if os.path.exists(del_file):
                             os.remove(del_file)
-                            
+
                         st.success("سیشن اور اس کا سارا ڈیٹا مکمل طور پر ڈیلیٹ ہو گیا!")
                         st.rerun()
 
         with col_list:
             st.markdown("### 🟢 Registered Academic Sessions")
             sessions_df = pd.read_sql("SELECT * FROM academic_sessions", conn)
-            
+
             if not sessions_df.empty:
                 st.caption(f"Total: {len(sessions_df)}")
                 for _, row in sessions_df.iterrows():
                     s_name = row['session_name']
                     s_status = row['status']
-                    
+
                     is_active = (s_status == 'ACTIVE')
                     box_color = "#e8f5e9" if is_active else "#f9f9f9"
                     border_color = "#4caf50" if is_active else "#ccc"
-                    
+
                     c_card1, c_card2 = st.columns([3, 1])
                     with c_card1:
-                        # 🟢 کیلنڈر اور ڈاٹ ایموجی کو محفوظ HTML کوڈز سے بدل دیا گیا ہے تاکہ ایرر نہ آئے
                         st.markdown(f"""
                         <div style="background: {box_color}; border: 1px solid {border_color}; padding: 12px; border-radius: 8px; margin-bottom: 10px;">
                             <b>&#128197; Session {s_name}</b> {'<span style="color: green; font-weight: bold; float: right;">&#9679; ACTIVE</span>' if is_active else ''}
                         </div>
                         """, unsafe_allow_html=True)
-                    
+
                     with c_card2:
                         if not is_active:
                             if st.button("Activate", key=f"act_{s_name}"):
                                 target_db = 'school_system.db' if s_name == '2026-27' else f'school_system_{s_name}.db'
-                                
+
                                 with open(SESSION_TRACKER_FILE, "w") as f:
                                     f.write(target_db)
-                                
+
                                 try:
                                     t_conn = sqlite3.connect(target_db)
                                     t_conn.execute("UPDATE academic_sessions SET status='INACTIVE'")
@@ -3777,7 +3620,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                                     t_conn.commit()
                                     t_conn.close()
                                 except: pass
-                                
+
                                 st.success(f"Session {s_name} is now ACTIVE!")
                                 st.rerun()
             else:
@@ -3791,14 +3634,14 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
         cursor.execute('''CREATE TABLE IF NOT EXISTS sys_classes (class_name TEXT PRIMARY KEY)''')
         cursor.execute('''CREATE TABLE IF NOT EXISTS sys_sections (id INTEGER PRIMARY KEY AUTOINCREMENT, class_name TEXT, section_name TEXT)''')
         cursor.execute('''CREATE TABLE IF NOT EXISTS sys_subjects (id INTEGER PRIMARY KEY AUTOINCREMENT, class_name TEXT, section_name TEXT, subject_name TEXT)''')
-        
+
         for c in classes_list:
             cursor.execute("INSERT OR IGNORE INTO sys_classes (class_name) VALUES (?)", (c,))
-            
+
         cursor.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != ''")
         for cls in cursor.fetchall():
             cursor.execute("INSERT OR IGNORE INTO sys_classes (class_name) VALUES (?)", (cls[0],))
-            
+
         cursor.execute("SELECT DISTINCT class, section FROM students WHERE class IS NOT NULL AND section IS NOT NULL AND section != ''")
         for c_name, s_name in cursor.fetchall():
             cursor.execute("SELECT id FROM sys_sections WHERE class_name=? AND section_name=?", (c_name, s_name))
@@ -3807,7 +3650,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
 
         cursor.execute("SELECT class_name, section_name FROM sys_sections")
         all_sys_sections = cursor.fetchall()
-        
+
         try:
             cursor.execute("SELECT subject_name FROM subjects")
             old_subjects = [s[0] for s in cursor.fetchall()]
@@ -3817,7 +3660,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                     for sub in old_subjects:
                         cursor.execute("INSERT INTO sys_subjects (class_name, section_name, subject_name) VALUES (?, ?, ?)", (c_n, s_n, sub))
         except: pass
-                    
+
         conn.commit()
 
         if 'mgt_sel_class' not in st.session_state: st.session_state.mgt_sel_class = None
@@ -3828,15 +3671,15 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
         with col_cls:
             st.markdown(f"### 🎓 {tr('کلاسز', 'CLASSES')}")
             classes_df = pd.read_sql("SELECT class_name FROM sys_classes", conn)
-            
+
             if not classes_df.empty:
                 for _, row in classes_df.iterrows():
                     c_name = row['class_name']
                     stu_count = pd.read_sql(f"SELECT COUNT(*) FROM students WHERE class='{c_name}' AND status='Active'", conn).iloc[0,0]
-                    
+
                     is_active = (st.session_state.mgt_sel_class == c_name)
                     btn_type = "primary" if is_active else "secondary"
-                    
+
                     cc1, cc2 = st.columns([4, 1])
                     if cc1.button(f"{c_name} 👤 {stu_count}", key=f"btn_c_{c_name}", use_container_width=True, type=btn_type):
                         st.session_state.mgt_sel_class = c_name
@@ -3863,7 +3706,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                             conn.commit()
                             st.rerun()
                         except: st.error("Class already exists!")
-                        
+
             with st.expander(tr("✏️ کلاس کا نام تبدیل کریں", "✏️ Rename Class")):
                 c_list_db = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
                 if c_list_db:
@@ -3876,17 +3719,14 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                                 try:
                                     cursor.execute("INSERT INTO sys_classes (class_name) VALUES (?)", (n_c,))
                                     cursor.execute("DELETE FROM sys_classes WHERE class_name=?", (c_to_edit,))
-                                    
                                     cursor.execute("UPDATE sys_sections SET class_name=? WHERE class_name=?", (n_c, c_to_edit))
                                     cursor.execute("UPDATE sys_subjects SET class_name=? WHERE class_name=?", (n_c, c_to_edit))
-                                    
                                     try: cursor.execute("UPDATE students SET class=? WHERE class=?", (n_c, c_to_edit))
                                     except: pass
                                     try: cursor.execute("UPDATE timetable SET class=? WHERE class=?", (n_c, c_to_edit))
                                     except: pass
                                     try: cursor.execute("UPDATE lesson_plan SET class=? WHERE class=?", (n_c, c_to_edit))
                                     except: pass
-                                    
                                     conn.commit()
                                     if st.session_state.mgt_sel_class == c_to_edit:
                                         st.session_state.mgt_sel_class = n_c
@@ -3898,17 +3738,16 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
             if st.session_state.mgt_sel_class:
                 sel_c = st.session_state.mgt_sel_class
                 st.markdown(f"### 📚 {sel_c.upper()} {tr('کے سیکشنز', 'SECTIONS')}")
-                
                 sec_df = pd.read_sql(f"SELECT id, section_name FROM sys_sections WHERE class_name='{sel_c}'", conn)
-                
+
                 if not sec_df.empty:
                     for _, row in sec_df.iterrows():
                         s_id, s_name = row['id'], row['section_name']
                         stu_count_sec = pd.read_sql(f"SELECT COUNT(*) FROM students WHERE class='{sel_c}' AND section='{s_name}' AND status='Active'", conn).iloc[0,0]
-                        
+
                         is_active_sec = (st.session_state.mgt_sel_sec == s_name)
                         btn_type_sec = "primary" if is_active_sec else "secondary"
-                        
+
                         sc1, sc2 = st.columns([4, 1])
                         if sc1.button(f"Sec {s_name} 👤 {stu_count_sec}", key=f"btn_s_{s_id}", use_container_width=True, type=btn_type_sec):
                             st.session_state.mgt_sel_sec = s_name
@@ -3931,7 +3770,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                             cursor.execute("INSERT INTO sys_sections (class_name, section_name) VALUES (?, ?)", (sel_c, new_sec.strip()))
                             conn.commit()
                             st.rerun()
-                            
+
                 with st.expander(tr("✏️ سیکشن کا نام تبدیل کریں", "✏️ Rename Section")):
                     sec_list_db = pd.read_sql(f"SELECT id, section_name FROM sys_sections WHERE class_name='{sel_c}'", conn)
                     if not sec_list_db.empty:
@@ -3942,17 +3781,14 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                                 if new_s_name.strip():
                                     old_s_name = sec_list_db[sec_list_db['id']==s_to_edit_id]['section_name'].values[0]
                                     n_s = new_s_name.strip()
-                                    
                                     cursor.execute("UPDATE sys_sections SET section_name=? WHERE id=?", (n_s, s_to_edit_id))
                                     cursor.execute("UPDATE sys_subjects SET section_name=? WHERE class_name=? AND section_name=?", (n_s, sel_c, old_s_name))
-                                    
                                     try: cursor.execute("UPDATE students SET section=? WHERE class=? AND section=?", (n_s, sel_c, old_s_name))
                                     except: pass
                                     try: cursor.execute("UPDATE timetable SET section=? WHERE class=? AND section=?", (n_s, sel_c, old_s_name))
                                     except: pass
                                     try: cursor.execute("UPDATE lesson_plan SET section=? WHERE class=? AND section=?", (n_s, sel_c, old_s_name))
                                     except: pass
-                                    
                                     conn.commit()
                                     if st.session_state.mgt_sel_sec == old_s_name:
                                         st.session_state.mgt_sel_sec = n_s
@@ -3967,13 +3803,11 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 sel_c = st.session_state.mgt_sel_class
                 sel_s = st.session_state.mgt_sel_sec
                 st.markdown(f"### 📖 {tr('مضامین', 'SUBJECTS')} (Sec {sel_s})")
-                
                 sub_df = pd.read_sql(f"SELECT id, subject_name FROM sys_subjects WHERE class_name='{sel_c}' AND section_name='{sel_s}'", conn)
-                
+
                 if not sub_df.empty:
                     for _, row in sub_df.iterrows():
                         sub_id, sub_name = row['id'], row['subject_name']
-                        
                         sb1, sb2 = st.columns([4, 1])
                         sb1.markdown(f"<div style='border:1px solid #ccc; padding:7px 10px; border-radius:5px; margin-bottom:5px; background:white;'>{sub_name}</div>", unsafe_allow_html=True)
                         if sb2.button("🗑️", key=f"del_sub_{sub_id}"):
@@ -3991,7 +3825,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                             cursor.execute("INSERT INTO sys_subjects (class_name, section_name, subject_name) VALUES (?, ?, ?)", (sel_c, sel_s, new_sub.strip()))
                             conn.commit()
                             st.rerun()
-                            
+
                 with st.expander(tr("✏️ مضمون کا نام تبدیل کریں", "✏️ Rename Subject")):
                     sub_list_db = pd.read_sql(f"SELECT id, subject_name FROM sys_subjects WHERE class_name='{sel_c}' AND section_name='{sel_s}'", conn)
                     if not sub_list_db.empty:
@@ -4002,16 +3836,13 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                                 if new_sub_name.strip():
                                     old_sub_name = sub_list_db[sub_list_db['id']==sub_to_edit_id]['subject_name'].values[0]
                                     n_sub = new_sub_name.strip()
-                                    
                                     cursor.execute("UPDATE sys_subjects SET subject_name=? WHERE id=?", (n_sub, sub_to_edit_id))
-                                    
                                     try: cursor.execute("UPDATE timetable SET subject=? WHERE class=? AND section=? AND subject=?", (n_sub, sel_c, sel_s, old_sub_name))
                                     except: pass
                                     try: cursor.execute("UPDATE lesson_plan SET subject=? WHERE class=? AND section=? AND subject=?", (n_sub, sel_c, sel_s, old_sub_name))
                                     except: pass
                                     try: cursor.execute("UPDATE exam_marks SET subject=? WHERE subject=? AND reg_id IN (SELECT reg_id FROM students WHERE class=? AND section=?)", (n_sub, old_sub_name, sel_c, sel_s))
                                     except: pass
-                                    
                                     conn.commit()
                                     st.success(tr("نام کامیابی سے تبدیل ہو گیا!", "Name updated successfully!"))
                                     st.rerun()
@@ -4019,15 +3850,15 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 st.markdown(f"### 📖 {tr('مضامین', 'SUBJECTS')}")
                 st.info(tr("👆 پہلے کلاس اور سیکشن منتخب کریں۔", "👆 Please select class and section first."))
 
-    elif sub_choice == "Time Table":
+    elif sub_choice in ["Time Table", "ٹائم ٹیبل"]:
         st.markdown("<div class='no-print'>", unsafe_allow_html=True)
-        
+
         if 'tt_sel_class' not in st.session_state: st.session_state.tt_sel_class = classes_list[0]
         if 'tt_sel_sec' not in st.session_state: st.session_state.tt_sel_sec = "A"
-        
+
         with st.expander(tr("➕ نیا پیریڈ شامل کریں", "➕ Add New Period"), expanded=True):
             c_a1, c_a2 = st.columns(2)
-            
+
             db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
             if not db_cls: db_cls = classes_list
             tt_add_class = c_a1.selectbox(
@@ -4044,33 +3875,33 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 index=db_sec.index(st.session_state.tt_sel_sec) if st.session_state.tt_sel_sec in db_sec else 0,
                 key="tt_add_sec"
             )
-            
+
             if tt_add_class != st.session_state.tt_sel_class or tt_add_sec != st.session_state.tt_sel_sec:
                 st.session_state.tt_sel_class = tt_add_class
                 st.session_state.tt_sel_sec = tt_add_sec
                 st.rerun()
-            
+
             days = [tr("روزانہ", "Daily"), tr("سوموار", "Monday"), tr("منگل", "Tuesday"), tr("بدھ", "Wednesday"), tr("جمعرات", "Thursday"), tr("جمعہ", "Friday"), tr("ہفتہ", "Saturday")]
             periods = [tr("پہلا پیریڈ", "1st Period"), tr("دوسرا پیریڈ", "2nd Period"), tr("تیسرا پیریڈ", "3rd Period"), tr("چوتھا پیریڈ", "4th Period"), tr("پانچواں پیریڈ", "5th Period"), tr("چھٹا پیریڈ", "6th Period"), tr("ساتواں پیریڈ", "7th Period"), tr("آٹھواں پیریڈ", "8th Period")]
-            
+
             tt_day = st.selectbox(tr("دن", "Day"), days)
-            
+
             existing_tt = pd.read_sql(f"SELECT period, subject FROM timetable WHERE class='{tt_add_class}' AND section='{tt_add_sec}' AND day='{tt_day}'", conn)
             used_periods = existing_tt['period'].tolist() if not existing_tt.empty else []
             used_subs = existing_tt['subject'].tolist() if not existing_tt.empty else []
-            
+
             available_periods = [p for p in periods if p not in used_periods]
-            
+
             all_subs_df = pd.read_sql(f"SELECT subject_name FROM sys_subjects WHERE class_name='{tt_add_class}' AND section_name='{tt_add_sec}'", conn)
             all_subs = all_subs_df['subject_name'].tolist() if not all_subs_df.empty else ["کوئی مضمون نہیں / No Subject"]
-            
+
             available_subs = [s for s in all_subs if s not in used_subs]
             if not available_subs and "No Subject" not in all_subs[0]: 
                  st.info(tr("اس دن کے تمام مضامین شیڈول ہو چکے ہیں۔", "All subjects for this day are already scheduled."))
                  available_subs = ["تمام مضامین شامل ہو چکے ہیں"]
             elif not available_subs:
                  available_subs = all_subs
-            
+
             available_teachers = pd.read_sql("SELECT name FROM staff", conn)['name'].tolist()
             if not available_teachers: available_teachers = ["No Teacher Found"]
 
@@ -4081,7 +3912,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 tt_period = c_p1.selectbox(tr("پیریڈ", "Period"), available_periods)
                 tt_sub = c_p2.selectbox(tr("مضمون", "Subject"), available_subs)
                 tt_teacher = c_p3.selectbox(tr("استاد (Teacher)", "Teacher"), available_teachers)
-                
+
                 if st.button(tr("ٹائم ٹیبل محفوظ کریں", "Save Timetable")):
                     cursor.execute("INSERT INTO timetable (class, section, day, period, subject, teacher_id) VALUES (?, ?, ?, ?, ?, ?)", (tt_add_class, tt_add_sec, tt_day, tt_period, tt_sub, tt_teacher))
                     conn.commit()
@@ -4100,7 +3931,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
             db_cls2 = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
             if not db_cls2: db_cls2 = classes_list
             tt_v_class = c_v1.selectbox(tr("کلاس منتخب کریں", "Select Class"), db_cls2, index=db_cls2.index(st.session_state.tt_sel_class) if st.session_state.tt_sel_class in db_cls2 else 0, key="tt_v_cls")
-            
+
             db_sec2 = pd.read_sql(f"SELECT section_name FROM sys_sections WHERE class_name='{tt_v_class}'", conn)['section_name'].tolist()
             if not db_sec2: db_sec2 = ["A"]
             tt_v_sec = c_v2.selectbox(tr("سیکشن", "Section"), db_sec2, index=db_sec2.index(st.session_state.tt_sel_sec) if st.session_state.tt_sel_sec in db_sec2 else 0, key="tt_v_sec")
@@ -4115,10 +3946,10 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 tt_df = tt_df.drop_duplicates(subset=['day', 'period'], keep='last')
                 tt_df['Display'] = tt_df['subject'] + "<br><span style='font-size:10px; color:#555;'>(" + tt_df['teacher_id'] + ")</span>"
                 pivot_df = tt_df.pivot(index='day', columns='period', values='Display').fillna('-')
-                
+
                 days = [tr("روزانہ", "Daily"), tr("سوموار", "Monday"), tr("منگل", "Tuesday"), tr("بدھ", "Wednesday"), tr("جمعرات", "Thursday"), tr("جمعہ", "Friday"), tr("ہفتہ", "Saturday")]
                 periods = [tr("پہلا پیریڈ", "1st Period"), tr("دوسرا پیریڈ", "2nd Period"), tr("تیسرا پیریڈ", "3rd Period"), tr("چوتھا پیریڈ", "4th Period"), tr("پانچواں پیریڈ", "5th Period"), tr("چھٹا پیریڈ", "6th Period"), tr("ساتواں پیریڈ", "7th Period"), tr("آٹھواں پیریڈ", "8th Period")]
-                
+
                 existing_days = [d for d in days if d in pivot_df.index]
                 pivot_df = pivot_df.reindex(existing_days)
                 existing_periods = [p for p in periods if p in pivot_df.columns]
@@ -4134,6 +3965,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 html_table = html_table.replace('<th>-', f'<th style="background-color:#1a4f8b; color:white; border:1px solid #000; padding:10px; text-align:center;">-')
 
                 st.markdown(html_table, unsafe_allow_html=True)
+                logo_base64_html = f'<img src="{logo_src_b64}" style="width: 50px; height: 50px; object-fit: contain;">' if logo_src_b64 else '<div style="font-size:28px;">🏫</div>'
 
                 print_html = f"""
                 <div style="width: 100%; font-family: Arial, sans-serif;" dir="{t['dir']}">
@@ -4189,6 +4021,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                     html_table = html_table.replace('<th>-', f'<th style="background-color:#1a4f8b; color:white; border:1px solid #000; padding:10px; text-align:center;">-')
 
                     st.markdown(html_table, unsafe_allow_html=True)
+                    logo_base64_html = f'<img src="{logo_src_b64}" style="width: 50px; height: 50px; object-fit: contain;">' if logo_src_b64 else '<div style="font-size:28px;">🏫</div>'
 
                     print_html = f"""
                     <div style="width: 100%; font-family: Arial, sans-serif;" dir="{t['dir']}">
@@ -4216,25 +4049,25 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
             else:
                 st.info(tr("ابھی تک کوئی ٹیچر ٹائم ٹیبل میں شامل نہیں ہے۔", "No teachers in timetable yet."))
 
-    elif sub_choice == "Lesson Plan":
+    elif sub_choice in ["Lesson Plan", "لیسن پلان"]:
         st.markdown("<div class='no-print'>", unsafe_allow_html=True)
-        
+
         if 'lp_sel_class' not in st.session_state: st.session_state.lp_sel_class = classes_list[0]
         if 'lp_sel_sec' not in st.session_state: st.session_state.lp_sel_sec = "A"
-        
+
         tab_add, tab_edit, tab_status, tab_del = st.tabs([
             "➕ " + tr("نیا لیسن پلان", "New Lesson Plan"), 
             "✏️ " + tr("ایڈٹ کریں", "Edit"),
             "✅ " + tr("سٹیٹس اپڈیٹ", "Update Status"),
             "🗑️ " + tr("ڈیلیٹ کریں", "Delete")
         ])
-        
+
         available_teachers = pd.read_sql("SELECT name FROM staff", conn)['name'].tolist()
         if not available_teachers: available_teachers = ["No Teacher Found"]
-        
+
         with tab_add:
             c_lp_top1, c_lp_top2, c_lp_type = st.columns(3)
-            
+
             db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
             if not db_cls: db_cls = classes_list
             lp_class = c_lp_top1.selectbox(
@@ -4251,17 +4084,17 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 index=db_sec.index(st.session_state.lp_sel_sec) if st.session_state.lp_sel_sec in db_sec else 0,
                 key="lp_sec"
             )
-            
+
             type_opts_ur = ["روزانہ", "ہفتہ وار", "ماہانہ", "سالانہ"]
             type_opts_en = ["Daily", "Weekly", "Monthly", "Yearly"]
             type_opts = type_opts_ur if st.session_state.ui_lang == "اردو" else type_opts_en
             lp_type = c_lp_type.selectbox(tr("پلان کی قسم", "Plan Type"), type_opts, key="lp_type_sel")
-            
+
             if lp_class != st.session_state.lp_sel_class or lp_sec != st.session_state.lp_sel_sec:
                 st.session_state.lp_sel_class = lp_class
                 st.session_state.lp_sel_sec = lp_sec
                 st.rerun()
-            
+
             c_date1, c_date2 = st.columns(2)
             if lp_type in ["روزانہ", "Daily"]:
                 lp_date_val = c_date1.date_input(tr("تاریخ منتخب کریں", "Select Date"), datetime.date.today(), key="lp_d_single")
@@ -4270,29 +4103,29 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 lp_start_val = c_date1.date_input(tr("شروع کی تاریخ (Start Date)", "Start Date"), datetime.date.today(), key="lp_d_start")
                 lp_end_val = c_date2.date_input(tr("ختم ہونے کی تاریخ (End Date)", "End Date"), datetime.date.today() + datetime.timedelta(days=7), key="lp_d_end")
                 final_date_str = f"{lp_start_val.strftime('%Y-%m-%d')} to {lp_end_val.strftime('%Y-%m-%d')}"
-            
+
             existing_lp_df = pd.read_sql(f"SELECT subject FROM lesson_plan WHERE date='{final_date_str}' AND class='{lp_class}' AND section='{lp_sec}'", conn)
             used_lp_subs = existing_lp_df['subject'].tolist() if not existing_lp_df.empty else []
-            
+
             dyn_subs_lp_df = pd.read_sql(f"SELECT subject_name FROM sys_subjects WHERE class_name='{lp_class}' AND section_name='{lp_sec}'", conn)
             all_lp_subs = dyn_subs_lp_df['subject_name'].tolist() if not dyn_subs_lp_df.empty else ["کوئی مضمون نہیں / No Subject"]
-            
+
             available_lp_subs = [s for s in all_lp_subs if used_lp_subs.count(s) < 2]
-            
+
             with st.form("lesson_plan_form", clear_on_submit=True):
                 if not available_lp_subs and "No Subject" not in all_lp_subs[0]:
                     st.info(tr("اس تاریخ / رینج کے لیے اس کلاس کے تمام مضامین کا لیسن پلان (2 بار) بن چکا ہے۔", "Lesson plans for all subjects are already created twice for this date/range."))
                     available_lp_subs = ["تمام مضامین شامل ہو چکے ہیں"]
                 elif not available_lp_subs:
                     available_lp_subs = all_lp_subs
-                
+
                 c_lp4, c_lp5 = st.columns(2)
                 lp_sub = c_lp4.selectbox(tr("مضمون", "Subject"), available_lp_subs, key="lp_sub")
                 lp_teacher = c_lp5.selectbox(tr("استاد (Teacher)", "Teacher"), available_teachers, key="lp_teacher")
-                
+
                 lp_topic = st.text_input(tr("آج کا ٹاپک / سبق کی تفصیل", "Topic / Lesson Details"))
                 lp_status = st.radio(tr("سٹیٹس", "Status"), [tr("جاری ہے", "In Progress"), tr("مکمل ہو گیا", "Completed")], index=0, horizontal=True)
-                
+
                 if st.form_submit_button(tr("ڈائری محفوظ کریں", "Save Lesson Plan")):
                     if lp_topic and "No Subject" not in lp_sub and "تمام مضامین" not in lp_sub:
                         cursor.execute("INSERT INTO lesson_plan (date, class, section, subject, teacher_id, topic, status, plan_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
@@ -4308,33 +4141,33 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
         with tab_edit:
             st.markdown(f"### {tr('لیسن پلان میں تبدیلی کریں', 'Edit Lesson Plan')}")
             st.info(tr("تبدیلی کے لیے نیچے دی گئی لسٹ سے لیسن پلان کی ID (پہلا کالم) دیکھ کر یہاں لکھیں۔", "Enter the Lesson Plan ID (from the first column of the list below) to edit it."))
-            
+
             c_e1, c_e2 = st.columns([1, 3])
             edit_lp_id_str = c_e1.text_input(tr("لیسن پلان ID درج کریں", "Enter Lesson Plan ID"), key="edit_lp_id_input")
-            
+
             if edit_lp_id_str.isdigit() and int(edit_lp_id_str) > 0:
                 edit_lp_id = int(edit_lp_id_str)
                 lp_match = pd.read_sql(f"SELECT * FROM lesson_plan WHERE id={edit_lp_id}", conn)
-                
+
                 if not lp_match.empty:
                     lp_data = lp_match.iloc[0]
                     with st.form("edit_lesson_plan_form"):
                         c_e_lp2, c_e_lp3, c_e_lp_type = st.columns(3)
-                        
+
                         db_cls_e = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
                         if not db_cls_e: db_cls_e = classes_list
                         e_lp_class = c_e_lp2.selectbox(tr("کلاس", "Class"), db_cls_e, index=db_cls_e.index(lp_data['class']) if lp_data['class'] in db_cls_e else 0, key="e_lp_cls")
-                        
+
                         db_sec_e = pd.read_sql(f"SELECT section_name FROM sys_sections WHERE class_name='{e_lp_class}'", conn)['section_name'].tolist()
                         if not db_sec_e: db_sec_e = ["A"]
                         e_lp_sec = c_e_lp3.selectbox(tr("سیکشن", "Section"), db_sec_e, index=db_sec_e.index(lp_data['section']) if lp_data['section'] in db_sec_e else 0, key="e_lp_sec")
-                        
+
                         curr_ptype = lp_data.get('plan_type', 'Daily' if st.session_state.ui_lang=="English" else "روزانہ")
                         if curr_ptype in type_opts_ur and st.session_state.ui_lang == "English": curr_ptype = type_opts_en[type_opts_ur.index(curr_ptype)]
                         elif curr_ptype in type_opts_en and st.session_state.ui_lang == "اردو": curr_ptype = type_opts_ur[type_opts_en.index(curr_ptype)]
                         pt_idx = type_opts.index(curr_ptype) if curr_ptype in type_opts else 0
                         e_lp_type = c_e_lp_type.selectbox(tr("پلان کی قسم", "Plan Type"), type_opts, index=pt_idx, key="e_lp_type")
-                        
+
                         curr_date_str = lp_data['date']
                         if " to " in curr_date_str:
                             d_parts = curr_date_str.split(" to ")
@@ -4347,40 +4180,40 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                             try: s_date = datetime.datetime.strptime(curr_date_str, "%Y-%m-%d").date()
                             except: s_date = datetime.date.today()
                             e_date = s_date
-                        
+
                         c_e_d1, c_e_d2 = st.columns(2)
                         e_lp_date_start = c_e_d1.date_input(tr("شروع کی تاریخ / ڈیلی تاریخ", "Start Date / Daily Date"), s_date, key="e_lp_start")
                         e_lp_date_end = c_e_d2.date_input(tr("ختم ہونے کی تاریخ (اگر رینج ہو)", "End Date (if range)"), e_date, key="e_lp_end")
-                        
+
                         c_e_lp4, c_e_lp5 = st.columns(2)
                         edit_dyn_subs_df = pd.read_sql(f"SELECT subject_name FROM sys_subjects WHERE class_name='{lp_data['class']}' AND section_name='{lp_data['section']}'", conn)
                         edit_available_subs = edit_dyn_subs_df['subject_name'].tolist() if not edit_dyn_subs_df.empty else [lp_data['subject']]
-                        
+
                         e_lp_sub = c_e_lp4.selectbox(tr("مضمون", "Subject"), edit_available_subs, index=edit_available_subs.index(lp_data['subject']) if lp_data['subject'] in edit_available_subs else 0, key="e_lp_sub")
-                        
+
                         t_idx = available_teachers.index(lp_data['teacher_id']) if lp_data['teacher_id'] in available_teachers else 0
                         e_lp_teacher = c_e_lp5.selectbox(tr("استاد (Teacher)", "Teacher"), available_teachers, index=t_idx, key="e_lp_teacher")
-                        
+
                         e_lp_topic = st.text_input(tr("آج کا ٹاپک / سبق کی تفصیل", "Topic / Lesson Details"), value=lp_data['topic'], key="e_lp_topic")
-                        
+
                         stat_opts_ur = ["جاری ہے", "مکمل ہو گیا"]
                         stat_opts_en = ["In Progress", "Completed"]
                         stat_opts = stat_opts_ur if st.session_state.ui_lang == "اردو" else stat_opts_en
-                        
+
                         curr_stat = lp_data['status']
                         if curr_stat in stat_opts_ur and st.session_state.ui_lang == "English": curr_stat = stat_opts_en[stat_opts_ur.index(curr_stat)]
                         elif curr_stat in stat_opts_en and st.session_state.ui_lang == "اردو": curr_stat = stat_opts_ur[stat_opts_en.index(curr_stat)]
-                            
+
                         s_idx = stat_opts.index(curr_stat) if curr_stat in stat_opts else 0
                         e_lp_status = st.radio(tr("سٹیٹس", "Status"), stat_opts, index=s_idx, horizontal=True, key="e_lp_status")
-                        
+
                         if st.form_submit_button(tr("تبدیلیاں محفوظ کریں", "Save Changes")):
                             if e_lp_topic:
                                 if e_lp_type in ["روزانہ", "Daily"]:
                                     final_e_date = e_lp_date_start.strftime("%Y-%m-%d")
                                 else:
                                     final_e_date = f"{e_lp_date_start.strftime('%Y-%m-%d')} to {e_lp_date_end.strftime('%Y-%m-%d')}"
-                                
+
                                 cursor.execute("""
                                     UPDATE lesson_plan 
                                     SET date=?, class=?, section=?, subject=?, teacher_id=?, topic=?, status=?, plan_type=? 
@@ -4396,14 +4229,14 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
             st.markdown(f"### ✅ {tr('نامکمل لیسن پلانز کو مکمل کریں', 'Complete Pending Lesson Plans')}")
             st.info(tr("یہاں آپ ان تمام لیسن پلانز کو ایک ہی کلک میں 'مکمل' کر سکتے ہیں جو ابھی 'جاری ہیں' (In Progress)۔ ٹک لگائیں اور اپڈیٹ کا بٹن دبائیں۔", 
                        "Here you can mark 'In Progress' lesson plans as 'Completed' with a single click. Check the box and click Update."))
-            
+
             pending_lp = pd.read_sql("SELECT id, date as Date, class as Class, section as Section, subject as Subject, teacher_id as Teacher, topic as Topic, status as Status FROM lesson_plan WHERE status IN ('In Progress', 'جاری ہے')", conn)
-            
+
             if not pending_lp.empty:
                 pending_lp.insert(0, 'Mark Completed', False)
                 if st.session_state.ui_lang == "اردو":
                     pending_lp = pending_lp.rename(columns={'Date': 'تاریخ', 'Class': 'کلاس', 'Section': 'سیکشن', 'Subject': 'مضمون', 'Teacher': 'استاد', 'Topic': 'ٹاپک', 'Status': 'سٹیٹس'})
-                
+
                 edited_pending = st.data_editor(
                     pending_lp, 
                     hide_index=True, 
@@ -4412,7 +4245,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                     use_container_width=True, 
                     key="pending_lp_editor"
                 )
-                
+
                 if st.button(tr("✅ منتخب لیسن پلانز کو مکمل کریں (Update Status)", "✅ Mark Selected as Completed"), type="primary"):
                     selected_ids = edited_pending[edited_pending['Mark Completed'] == True]['id'].tolist()
                     if selected_ids:
@@ -4429,17 +4262,17 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
 
         with tab_del:
             st.markdown(f"### 🗑️ {tr('لیسن پلان ڈیلیٹ کریں', 'Delete Lesson Plan')}")
-            
+
             del_mode = st.radio(tr("ڈیلیٹ کرنے کا طریقہ منتخب کریں:", "Select Delete Method:"), 
                                 [tr("سنگل لیسن پلان ڈیلیٹ کریں", "Delete Single Lesson Plan"), 
                                  tr("تمام لیسن پلانز ڈیلیٹ کریں (مکمل صفائی)", "Delete All Lesson Plans (Bulk Clear)")])
-            
+
             st.write("---")
-            
+
             if "Single" in del_mode or "سنگل" in del_mode:
                 c_d1, c_d2 = st.columns([1, 2])
                 del_id_str = c_d1.text_input(tr("ڈیلیٹ کرنے کے لیے لیسن پلان کی ID درج کریں", "Enter Lesson Plan ID to Delete"), key="del_lp_id_input")
-                
+
                 if c_d1.button("🗑️ " + tr("ڈیلیٹ کریں", "Delete"), key="btn_del_single"):
                     if del_id_str.isdigit():
                         del_id = int(del_id_str)
@@ -4453,12 +4286,12 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                             st.error(tr("اس ID کا کوئی لیسن پلان موجود نہیں۔", "No lesson plan found with this ID."))
                     else:
                         st.warning(tr("براہ کرم درست ID درج کریں۔", "Please enter a valid ID."))
-                        
+
             elif "All" in del_mode or "تمام" in del_mode:
                 st.error(tr("⚠️ انتباہ: کیا آپ واقعی تمام لیسن پلانز کا ریکارڈ ڈیلیٹ کرنا چاہتے ہیں؟ یہ عمل واپس نہیں ہو سکتا۔", 
                             "⚠️ WARNING: Are you sure you want to delete ALL lesson plans? This action cannot be undone."))
                 confirm_del = st.checkbox(tr("ہاں، میں تمام ریکارڈ ڈیلیٹ کرنا چاہتا ہوں", "Yes, I want to delete all records"))
-                
+
                 if st.button("🚨 " + tr("تمام ریکارڈ ڈیلیٹ کریں", "Delete All Records"), key="btn_del_all"):
                     if confirm_del:
                         cursor.execute("DELETE FROM lesson_plan")
@@ -4470,75 +4303,80 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
 
         st.write("---")
         st.markdown(f"#### 📖 {tr('محفوظ شدہ لیسن پلانز (آخری 100)', 'Saved Lesson Plans (Last 100)')}")
-        
+
         lp_df = pd.read_sql("SELECT id as ID, date as Date, plan_type as 'Plan Type', class as Class, section as Section, subject as Subject, teacher_id as Teacher, topic as Topic, status as Status FROM lesson_plan ORDER BY id DESC LIMIT 100", conn)
-        
+
         if st.session_state.ui_lang == "اردو":
             lp_df = lp_df.rename(columns={"Date": "تاریخ", "Plan Type": "قسم", "Class": "کلاس", "Section": "سیکشن", "Subject": "مضمون", "Teacher": "استاد", "Topic": "ٹاپک", "Status": "سٹیٹس"})
-            
+
         st.dataframe(lp_df, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
-        
+
     elif sub_choice in ["Exams & Marks", "امتحانات / مارکس"]:
         st.markdown("<div class='no-print'>", unsafe_allow_html=True)
-        
+
         if 'ex_sel_class' not in st.session_state: st.session_state.ex_sel_class = classes_list[0]
         if 'ex_sel_sec' not in st.session_state: st.session_state.ex_sel_sec = "A"
         if 'ex_sel_exam' not in st.session_state: st.session_state.ex_sel_exam = None
-        
+
         with st.expander(tr("1. نیا امتحان بنائیں (Create Exam)", "1. Create Exam")):
             c_ex1, c_ex2 = st.columns(2)
             exam_name = c_ex1.text_input(tr("امتحان کا نام (مثال: First Term 2026)", "Exam Name (e.g., First Term 2026)"))
             exam_date = c_ex2.date_input(tr("شروع ہونے کی تاریخ", "Start Date"))
             if st.button(tr("امتحان محفوظ کریں", "Save Exam")):
                 if exam_name:
-                    try: cursor.execute("INSERT INTO exams (exam_name, start_date) VALUES (?, ?)", (exam_name, exam_date.strftime("%Y-%m-%d"))); conn.commit(); st.success("Exam created!"); st.rerun()
-                    except: st.error("Exam already exists.")
+                    try: 
+                        cursor.execute("INSERT INTO exams (exam_name, start_date) VALUES (?, ?)", (exam_name, exam_date.strftime("%Y-%m-%d")))
+                        conn.commit()
+                        st.success("Exam created!")
+                        st.rerun()
+                    except: 
+                        st.error("Exam already exists.")
 
         with st.expander(tr("2. طلباء کے نمبرز کی انٹری (Enter Marks)", "2. Enter Marks"), expanded=True):
             available_exams = pd.read_sql("SELECT exam_name FROM exams", conn)['exam_name'].tolist()
             if available_exams:
                 if not st.session_state.ex_sel_exam or st.session_state.ex_sel_exam not in available_exams:
                     st.session_state.ex_sel_exam = available_exams[0]
-                    
+
                 c_em1, c_em2, c_em3 = st.columns(3)
                 em_exam = c_em1.selectbox(tr("امتحان", "Exam"), available_exams, index=available_exams.index(st.session_state.ex_sel_exam), key="em_exam")
-                
+
                 db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
                 if not db_cls: db_cls = classes_list
                 em_class = c_em2.selectbox(tr("کلاس", "Class"), db_cls, index=db_cls.index(st.session_state.ex_sel_class) if st.session_state.ex_sel_class in db_cls else 0, key="em_cls")
-                
+
                 db_sec = pd.read_sql(f"SELECT section_name FROM sys_sections WHERE class_name='{em_class}'", conn)['section_name'].tolist()
                 if not db_sec: db_sec = ["A"]
                 em_sec = c_em3.selectbox(tr("سیکشن", "Section"), db_sec, index=db_sec.index(st.session_state.ex_sel_sec) if st.session_state.ex_sel_sec in db_sec else 0, key="em_sec")
-                
+
                 if em_exam != st.session_state.ex_sel_exam or em_class != st.session_state.ex_sel_class or em_sec != st.session_state.ex_sel_sec:
                     st.session_state.ex_sel_exam = em_exam
                     st.session_state.ex_sel_class = em_class
                     st.session_state.ex_sel_sec = em_sec
                     st.rerun()
-                
+
                 existing_marks_df = pd.read_sql(f"SELECT DISTINCT subject FROM exam_marks WHERE exam_name='{em_exam}' AND reg_id IN (SELECT reg_id FROM students WHERE class='{em_class}' AND section='{em_sec}')", conn)
                 used_ex_subs = existing_marks_df['subject'].tolist() if not existing_marks_df.empty else []
-                
+
                 dyn_subs_ex_df = pd.read_sql(f"SELECT subject_name FROM sys_subjects WHERE class_name='{em_class}' AND section_name='{em_sec}'", conn)
                 all_ex_subs = dyn_subs_ex_df['subject_name'].tolist() if not dyn_subs_ex_df.empty else ["کوئی مضمون نہیں / No Subject"]
-                
+
                 available_ex_subs = [s for s in all_ex_subs if s not in used_ex_subs]
-                
+
                 with st.form("marks_entry_form"):
                     if not available_ex_subs and "No Subject" not in all_ex_subs[0]:
                         st.info(tr("اس کلاس کے تمام مضامین کا رزلٹ اس امتحان کے لیے بن چکا ہے۔", "Marks for all subjects have been entered for this class in this exam."))
                         available_ex_subs = ["تمام مضامین شامل ہو چکے ہیں"]
                     elif not available_ex_subs:
                         available_ex_subs = all_ex_subs
-                        
+
                     c_em4, c_em5 = st.columns(2)
                     em_sub = c_em4.selectbox("Subject", available_ex_subs, key="em_sub")
                     tot_marks = c_em5.number_input(tr("اس مضمون کے کل نمبر (Total Marks)", "Total Marks for this subject"), min_value=1.0, value=100.0)
-                    
+
                     exam_students = pd.read_sql(f"SELECT reg_id, name, name_en FROM students WHERE class='{em_class}' AND section='{em_sec}' AND status='Active'", conn)
-                    
+
                     if not exam_students.empty and "No Subject" not in em_sub and "تمام مضامین" not in em_sub:
                         marks_dict = {}
                         for _, es in exam_students.iterrows():
@@ -4546,9 +4384,8 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                             d_name = get_disp_val(es['name'], es.get('name_en'))
                             c_mark1, c_mark2 = st.columns([2, 1])
                             c_mark1.markdown(f"<div style='padding-top:10px;'>**{d_name}** (Reg: {es['reg_id']})</div>", unsafe_allow_html=True)
-                            
                             marks_dict[es['reg_id']] = c_mark2.text_input(tr("حاصل کردہ نمبر", "Obtained Marks"), value="", key=f"mark_{es['reg_id']}", label_visibility="collapsed")
-                        
+
                         if st.form_submit_button(tr("تمام نمبرز محفوظ کریں", "Save All Marks")):
                             for r_id, val_in in marks_dict.items():
                                 try: obt_m = float(val_in)
@@ -4570,25 +4407,24 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
     elif sub_choice in ["Result Card", "رزلٹ کارڈ"]:
         st.markdown("<div class='no-print'>", unsafe_allow_html=True)
         available_exams_res = pd.read_sql("SELECT exam_name FROM exams", conn)['exam_name'].tolist()
-        
+
         if available_exams_res:
             st.markdown(f"### 📄 {tr('رزلٹ کارڈ جنریٹر', 'Result Card Generator')}")
-            
             rc_exam = st.selectbox(tr("امتحان منتخب کریں", "Select Exam for Result"), available_exams_res)
             st.write("---")
-            
+
             gen_mode = st.radio(tr("رزلٹ کارڈ کس کا بنانا ہے؟", "Generate result for:"), 
                                 [tr("سنگل طالب علم", "Single Student"), 
                                  tr("پوری کلاس", "Whole Class"), 
                                  tr("پورا سکول", "Whole School")], horizontal=True)
-            
+
             students_to_print = pd.DataFrame()
-            
+
             if "Single" in gen_mode or "سنگل" in gen_mode:
                 rc_reg = st.text_input(tr("طالب علم کا رول نمبر لکھیں", "Enter Student Reg No"))
                 if rc_reg:
                     students_to_print = pd.read_sql(f"SELECT * FROM students WHERE reg_id='{rc_reg}'", conn)
-            
+
             elif "Class" in gen_mode or "کلاس" in gen_mode:
                 c_rc1, c_rc2 = st.columns(2)
                 db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
@@ -4598,45 +4434,43 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 if not db_sec: db_sec = ["A"]
                 rc_sec = c_rc2.selectbox(tr("سیکشن", "Section"), db_sec)
                 students_to_print = pd.read_sql(f"SELECT * FROM students WHERE class='{rc_cls}' AND section='{rc_sec}' AND status='Active'", conn)
-                
+
             elif "School" in gen_mode or "سکول" in gen_mode:
                 students_to_print = pd.read_sql("SELECT * FROM students WHERE status='Active'", conn)
                 st.info(tr("یہ پورے سکول کے تمام طلباء کے رزلٹ کارڈ ایک ساتھ بنائے گا۔ اس میں تھوڑا وقت لگ سکتا ہے۔", "This will generate result cards for ALL students in the school. It may take some time."))
-                
+
             btn_result = st.button(tr("رزلٹ کارڈز جنریٹ کریں", "Generate Result Cards"), type="primary", use_container_width=True)
-            
+
             if btn_result:
                 if not students_to_print.empty:
                     t = {"align": "left", "dir": "ltr"} if st.session_state.ui_lang == "English" else {"align": "right", "dir": "rtl"}
                     combined_html = f"<div style='width: 100%;' dir='{t['dir']}'>"
-                    
+
                     cards_generated = 0
                     progress_bar = st.progress(0)
                     total_stu = len(students_to_print)
-                    
+
                     for idx, s_row in students_to_print.iterrows():
                         rc_reg_curr = s_row['reg_id']
                         marks_df = pd.read_sql(f"SELECT subject as 'Subject', total_marks as 'Total', obtained_marks as 'Obtained' FROM exam_marks WHERE exam_name='{rc_exam}' AND reg_id='{rc_reg_curr}'", conn)
-                        
+
                         if not marks_df.empty:
                             grand_total = marks_df['Total'].sum()
                             grand_obtained = marks_df['Obtained'].sum()
                             percentage = (grand_obtained / grand_total) * 100 if grand_total > 0 else 0
-                            
+
                             if percentage >= 80: grade = "A+"
                             elif percentage >= 70: grade = "A"
                             elif percentage >= 60: grade = "B"
                             elif percentage >= 50: grade = "C"
                             elif percentage >= 40: grade = "D"
                             else: grade = "Fail"
-                            
-                            # 🟢 یہ ہے محفوظ طریقہ (فیصد کو پہلے سٹرنگ میں بدل لیا ہے تاکہ ایرر نہ آئے)
+
                             perc_str = f"{percentage:.2f}%"
-                            
                             marks_rows = ""
                             for _, m_row in marks_df.iterrows():
                                 marks_rows += f"<tr><td style='border:1px solid black; padding:6px; font-size:12px;'>{m_row['Subject']}</td><td style='border:1px solid black; padding:6px; text-align:center; font-size:12px;'>{m_row['Total']}</td><td style='border:1px solid black; padding:6px; text-align:center; font-size:12px;'>{m_row['Obtained']}</td></tr>"
-                            
+
                             photo_data = s_row.get('photo', None)
                             student_photo_html = '<div style="width:110px; height:130px; border:2px solid #000; text-align:center; line-height:130px; font-size:12px; background:#f9f9f9; color:#999; margin:0 auto;">Photo</div>'
                             if photo_data:
@@ -4644,20 +4478,20 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                                     b64_photo = base64.b64encode(photo_data).decode()
                                     student_photo_html = f'<img src="data:image/jpeg;base64,{b64_photo}" style="width:110px; height:130px; object-fit:cover; border:2px solid #000; display:block !important; visibility:visible !important; margin:0 auto;">'
                                 except: pass
-                            
+
                             logo_td_content = f'<div style="text-align:{t["align"]}; padding-right: 15px;">{logo_base64_html}</div>'
                             photo_td_content = f'<div style="text-align:{"right" if t["align"]=="left" else "left"}; padding-left: 15px;">{student_photo_html}</div>'
-                            
+
                             raw_g = str(s_row.get('g_type', 'Father'))
                             gender_val = str(s_row.get('gender', 'Boy'))
                             try: rel_str = get_relation_card_label(gender_val, raw_g)
                             except: rel_str = "S/O" if gender_val == "Boy" else "D/O"
-                            
+
                             try: d_name = get_disp_val(s_row['name'], s_row.get('name_en'))
                             except: d_name = s_row['name']
                             try: d_fname = get_disp_val(s_row['fname'], s_row.get('fname_en'))
                             except: d_fname = s_row['fname']
-                            
+
                             res_html = f"""
                             <div style="border: 4px solid black; padding: 15px; width: 100%; max-width: 700px; margin: 0 auto; font-family: 'Arial', sans-serif; background-color: white; color: black; box-sizing: border-box; page-break-inside: avoid;">
                                 <table style="width: 100%; border: none; margin-bottom: 10px;">
@@ -4712,11 +4546,11 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                             """
                             combined_html += res_html
                             cards_generated += 1
-                            
+
                         progress_bar.progress(min((idx + 1) / total_stu, 1.0))
-                            
+
                     combined_html += "</div>"
-                    
+
                     if cards_generated > 0:
                         try: print_button_js(combined_html, tr(f"{cards_generated} رزلٹ کارڈز پرنٹ کریں", f"Print {cards_generated} Result Cards"), landscape=False)
                         except: st.components.v1.html(combined_html, height=600, scrolling=True)
@@ -4730,27 +4564,27 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
     elif sub_choice in ["Promotion System", "پروموشن سسٹم"]:
         st.markdown("<div class='no-print'>", unsafe_allow_html=True)
         st.info(tr("یہاں سے آپ طلباء کو اگلی کلاس میں پرموٹ (Promote) کر سکتے ہیں، فیل طلباء کو اسی کلاس میں روک سکتے ہیں، یا سکول چھوڑنے والوں کا سٹیٹس تبدیل کر سکتے ہیں۔", "Here you can promote students to the next class, hold failed students, or update the status of those who have left."))
-        
+
         try: cursor.execute("ALTER TABLE students ADD COLUMN status TEXT DEFAULT 'Active'")
         except: pass
         conn.commit()
-        
+
         c_prom1, c_prom2 = st.columns(2)
         db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
         if not db_cls: db_cls = classes_list
         prom_class = c_prom1.selectbox(tr("موجودہ کلاس منتخب کریں", "Select Current Class"), db_cls)
-        
+
         db_sec = pd.read_sql(f"SELECT section_name FROM sys_sections WHERE class_name='{prom_class}'", conn)['section_name'].tolist()
         if not db_sec: db_sec = ["A"]
         prom_sec = c_prom2.selectbox(tr("موجودہ سیکشن", "Current Section"), db_sec)
-        
+
         stu_to_promote = pd.read_sql(f"SELECT reg_id, name, fname FROM students WHERE class='{prom_class}' AND section='{prom_sec}' AND status='Active'", conn)
-        
+
         if not stu_to_promote.empty:
             stu_to_promote.insert(0, 'Select', True)
             if st.session_state.ui_lang == "اردو":
                 stu_to_promote = stu_to_promote.rename(columns={'reg_id': 'رول نمبر', 'name': 'نام', 'fname': 'ولدیت'})
-                
+
             st.markdown(f"#### 📋 {tr('اس کلاس کے طلباء', 'Students of this class')}")
             edited_prom_df = st.data_editor(
                 stu_to_promote,
@@ -4759,26 +4593,26 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 disabled=["reg_id", "رول نمبر", "name", "نام", "fname", "ولدیت"],
                 use_container_width=True
             )
-            
+
             st.write("---")
             st.markdown(f"#### ⚙️ {tr('ایکشن منتخب کریں', 'Select Action')}")
-            
+
             action_type = st.radio(tr("ان طلباء کے ساتھ کیا کرنا ہے؟", "What to do with selected students?"),
                                    [tr("اگلی کلاس میں پرموٹ کریں (Promote)", "Promote to Next Class"),
                                     tr("فارغ التحصیل / سکول چھوڑ گئے (Mark as Left/Graduated)", "Mark as Left/Graduated")], horizontal=True)
-            
+
             if "Promote" in action_type or "پرموٹ" in action_type:
                 c_act1, c_act2 = st.columns(2)
                 next_class = c_act1.selectbox(tr("اگلی کلاس (جس میں بھیجنا ہے)", "Next Class (Target)"), db_cls)
                 db_sec_next = pd.read_sql(f"SELECT section_name FROM sys_sections WHERE class_name='{next_class}'", conn)['section_name'].tolist()
                 if not db_sec_next: db_sec_next = ["A"]
                 next_sec = c_act2.selectbox(tr("اگلا سیکشن", "Next Section"), db_sec_next)
-                
+
                 if st.button(tr("✅ منتخب طلباء کو پرموٹ کریں", "✅ Promote Selected Students"), type="primary"):
                     sel_col = 'Select'
                     reg_col = 'رول نمبر' if st.session_state.ui_lang == "اردو" else 'reg_id'
                     selected_regs = edited_prom_df[edited_prom_df[sel_col] == True][reg_col].tolist()
-                    
+
                     if selected_regs:
                         for r_id in selected_regs:
                             cursor.execute("UPDATE students SET class=?, section=? WHERE reg_id=?", (next_class, next_sec, r_id))
@@ -4787,15 +4621,15 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                         st.rerun()
                     else:
                         st.warning(tr("کوئی طالب علم منتخب نہیں کیا گیا۔", "No student selected."))
-            
+
             else:
                 leave_reason = st.selectbox(tr("سکول چھوڑنے کی وجہ", "Reason for leaving"), [tr("تعلیم مکمل کر لی (Graduated)", "Completed Education (Graduated)"), tr("سکول چھوڑ دیا (Left School)", "Left School"), tr("نکال دیا گیا (Expelled)", "Expelled")])
-                
+
                 if st.button(tr("🛑 منتخب طلباء کا سٹیٹس تبدیل کریں", "🛑 Update Status of Selected Students"), type="primary"):
                     sel_col = 'Select'
                     reg_col = 'رول نمبر' if st.session_state.ui_lang == "اردو" else 'reg_id'
                     selected_regs = edited_prom_df[edited_prom_df[sel_col] == True][reg_col].tolist()
-                    
+
                     if selected_regs:
                         leave_val = "Graduated" if "Graduated" in leave_reason or "مکمل" in leave_reason else ("Left" if "Left" in leave_reason or "چھوڑ" in leave_reason else "Expelled")
                         for r_id in selected_regs:
@@ -4805,7 +4639,6 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                         st.rerun()
                     else:
                         st.warning(tr("کوئی طالب علم منتخب نہیں کیا گیا۔", "No student selected."))
-                        
         else:
             st.info(tr("اس کلاس میں کوئی ایکٹو طالب علم موجود نہیں۔", "No active students found in this class."))
         st.markdown("</div>", unsafe_allow_html=True)
@@ -4814,13 +4647,12 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
     elif sub_choice in ["Exam Answer Sheet", "امتحانی جوابی کاپی"]:
         st.markdown(f"### 📝 {tr('امتحانی جوابی کاپی (Answer Sheet)', 'Exam Answer Sheet')}")
         st.write(tr("یہاں سے آپ پنجاب بورڈ کے پیٹرن پر پروفیشنل امتحانی کاپی (لوگو اور واٹر مارک کے ساتھ) جنریٹ اور پرنٹ کر سکتے ہیں۔", "Generate and print professional exam answer sheets based on the Punjab Board pattern."))
-        
+
         is_eng = st.session_state.ui_lang == "English"
         t_dir = "ltr" if is_eng else "rtl"
         t_align = "left" if is_eng else "right"
         t_align_opp = "right" if is_eng else "left"
-        
-        # 🟢 زبان کے لحاظ سے تمام لیبلز اور فونٹس سیٹ کیے گئے ہیں
+
         if is_eng:
             font_css = ""
             f_family = "'Arial', sans-serif"
@@ -4851,24 +4683,23 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
             tot_lbl = "کل نمبر"
             obj_sec_lbl = "معروضی حصہ (MCQs)"
             subj_sec_lbl = "انشائیہ حصہ"
-        
+
         c_ex1, c_ex2, c_ex3 = st.columns(3)
         exam_title = c_ex1.text_input(tr("امتحان کا نام (Exam Title)", "Exam Title"), value="First Term Examination 2026" if is_eng else "پہلی ششماہی امتحان 2026")
         mcq_count = c_ex2.number_input(tr("MCQs کی تعداد (0=صرف لائنیں)", "Number of MCQs (0 for only lines)"), min_value=0, max_value=40, value=15)
         subj_count = c_ex3.number_input(tr("انشائیہ سوالات کی تعداد", "Number of Subjective Questions"), min_value=1, max_value=15, value=8)
-        
+
         if st.button(tr("جوابی کاپی جنریٹ کریں", "Generate Answer Sheet"), type="primary"):
             school_n_doc = school_name.upper() if school_name else "DAR UL KHADIJA SCHOOL SYSTEM"
             watermark_html = f"""<div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: url('{logo_src_b64}'); background-position: center; background-repeat: no-repeat; background-size: 55%; opacity: 0.07; z-index: 0; pointer-events: none;"></div>""" if logo_src_b64 else ""
             header_logo_html = f'<img src="{logo_src_b64}" style="height: 65px; margin-right: 15px; margin-left: 15px; object-fit: contain;">' if logo_src_b64 else ''
-            
-            # 🟢 ممتحن کا حصہ (Examiner Marks Block)
+
             th_cells = ""
             td_cells = ""
             for q in range(1, int(subj_count) + 1):
                 th_cells += f"<td style='border: 1px solid #000; padding: 4px; font-size: 11px;'>Q.{q}</td>"
                 td_cells += f"<td style='border: 1px solid #000; padding: 10px;'></td>"
-                
+
             examiner_table_html = f"""
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 10px; text-align: center; font-weight: bold; background-color: rgba(240,240,240,0.8);" dir="ltr">
                 <tr>
@@ -4882,8 +4713,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 </tr>
             </table>
             """
-            
-            # 🟢 MCQs کے ببلز (Bubbles)
+
             mcq_html = ""
             if mcq_count > 0:
                 mcq_html += f"""<div style="margin-top: 10px; border: 1px solid #000; padding: 8px; background: rgba(255,255,255,0.8);"><h4 style="margin: 0 0 5px 0; text-align: center; border-bottom: 1px solid #ccc; padding-bottom: 3px; font-size: 13px; font-family: {f_family};">{obj_sec_lbl}</h4><table style="width: 100%; font-size: 12px; font-family: Arial, sans-serif;" dir="ltr">"""
@@ -4900,20 +4730,15 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                     mcq_html += "</tr>"
                 mcq_html += "</table></div>"
 
-            # 🟢 لکھنے کے لیے لائنیں (Ruled Lines)
             lines_html = ""
             for _ in range(35): 
                 lines_html += "<div style='border-bottom: 1px solid #999; height: 32px; width: 100%; box-sizing: border-box;'></div>"
 
-            # 🟢 Flexbox کا استعمال کر کے پورے پیج کو لاک کر دیا گیا ہے
             doc_html = f"""
             {font_css}
             <div style="font-family: {f_family}; padding: 25px 35px; max-width: 800px; height: 1030px; margin: 0 auto; border: 2px solid #000; background: white; position: relative; z-index: 1; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; page-break-inside: avoid;" dir="{t_dir}">
                 {watermark_html}
-                
                 <div style="position: relative; z-index: 2; width: 100%;">
-                    
-                    <!-- 🟢 Header -->
                     <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 15px;">
                         <div style="width: 20%; text-align: {t_align};">{header_logo_html}</div>
                         <div style="width: 60%; text-align: center;">
@@ -4927,8 +4752,6 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- 🟢 Student Details -->
                     <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px; font-weight: bold;">
                         <tr>
                             <td style="border: 1px solid #000; padding: 8px; width: 50%;">{st_name_lbl} <span style="border-bottom: 1px dashed #000; display: inline-block; width: 65%;"></span></td>
@@ -4943,21 +4766,15 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                             <td style="border: 1px solid #000; padding: 8px;">{tot_pages_lbl} <span style="border-bottom: 1px dashed #000; display: inline-block; width: 55%;"></span></td>
                         </tr>
                     </table>
-                    
                     {examiner_table_html}
-                    
                     {mcq_html}
-                    
                     <div style="text-align: center; margin: 15px 0 5px 0;">
                         <h4 style="margin: 0; border-bottom: 2px solid #000; display: inline-block; font-size: 14px;">{subj_sec_lbl}</h4>
                     </div>
                 </div>
-                
-                <!-- 🟢 یہ حصہ خود بخود باقی بچی ہوئی جگہ پر فکس ہو جائے گا (Overflow Hidden) -->
                 <div style="flex-grow: 1; overflow: hidden; position: relative; z-index: 2; width: 100%;">
                     {lines_html}
                 </div>
-                
             </div>
             """
             
@@ -4988,7 +4805,6 @@ elif core_choice in ["ٹرانسپورٹ (GPS)", "Transport"]:
                     try:
                         gps_id = f"GPS_{v_id.replace(' ', '')}"
                         cursor.execute("INSERT INTO transport VALUES (?, ?, ?, ?, ?, ?, ?)", (v_id, v_type, d_name, d_phone, v_route, v_fare, gps_id))
-                        # 🟢 سلانوالی کی ابتدائی ڈمی لوکیشن ڈالیں تاکہ میپ چل سکے (Lat: 31.82, Lon: 72.54)
                         cursor.execute("INSERT INTO live_locations VALUES (?, 31.821, 72.542, ?, 0)", (gps_id, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
                         conn.commit()
                         st.success(tr("گاڑی اور GPS سسٹم کامیابی سے شامل ہو گئے!", "Vehicle & GPS initialized successfully!"))
@@ -5026,7 +4842,6 @@ elif core_choice in ["ٹرانسپورٹ (GPS)", "Transport"]:
                     cursor.execute("DELETE FROM transport_members WHERE reg_id=?", (r_id,))
                     cursor.execute("INSERT INTO transport_members VALUES (?, ?)", (r_id, veh_id))
                     
-                    # 🟢 آٹو فیس میں کرایہ شامل کرنا (اختیاری)
                     extra_fare = v_df[v_df['vehicle_id'] == veh_id].iloc[0]['fare']
                     cursor.execute(f"UPDATE students SET monthly_fee = monthly_fee + {extra_fare} WHERE reg_id='{r_id}'")
                     conn.commit()
@@ -5045,11 +4860,9 @@ elif core_choice in ["ٹرانسپورٹ (GPS)", "Transport"]:
         st.markdown(f"### 🛰️ {tr('لائیو وہیکل ٹریکنگ ڈیش بورڈ', 'Live Vehicle Tracking Dashboard')}")
         st.write(tr("یہاں آپ نقشے پر سکول کی تمام گاڑیوں کی لائیو لوکیشن دیکھ سکتے ہیں۔", "View real-time location of all school vehicles on the map."))
         
-        # 🟢 سلانوالی کی لوکیشن کے حساب سے GPS سمولیشن (صرف ڈیمو اور ٹیسٹنگ کے لیے)
         if st.button("📡 سمیلیٹ لائیو موومنٹ (Test Live Movement)", help="گاڑیوں کو نقشے پر حرکت دینے کے لیے اسے دبائیں"):
             locs = pd.read_sql("SELECT device_id, lat, lon FROM live_locations", conn)
             for _, l in locs.iterrows():
-                # لوکیشن میں تھوڑی سی تبدیلی (گاڑی کے چلنے کا احساس دلانے کے لیے)
                 new_lat = l['lat'] + random.uniform(-0.002, 0.002)
                 new_lon = l['lon'] + random.uniform(-0.002, 0.002)
                 t_now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -5063,9 +4876,7 @@ elif core_choice in ["ٹرانسپورٹ (GPS)", "Transport"]:
         """, conn)
         
         if not map_df.empty:
-            # 🟢 لائیو نقشہ (Streamlit Native Map)
             st.map(map_df, zoom=13, use_container_width=True)
-            
             st.markdown("#### 📍 آخری اپڈیٹ (Last Known Locations)")
             st.dataframe(map_df[['vehicle_id', 'driver_name', 'last_updated']], use_container_width=True, hide_index=True)
         else:
@@ -5112,22 +4923,8 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
     else:
         classes_list_wa = sorted(list(set([str(s[5]) for s in all_students if s[5]])))
         
-        cat_options_en = [
-            "Daily Homework & Lesson Plan",
-            "Daily Attendance Status",
-            "Monthly Attendance Summary",
-            "Exam Performance & Result Report",
-            "General Notice & Circular",
-            "Fee Defaulters Reminder"
-        ]
-        cat_options_ur = [
-            "روزانہ ہوم ورک اور لیسن پلان",
-            "روزانہ حاضری کی رپورٹ",
-            "ماہانہ حاضری کی سمری",
-            "امتحان کا رزلٹ اور پرفارمنس",
-            "جنرل نوٹس اور سرکلر",
-            "فیس ڈیفالٹرز ریمائنڈر"
-        ]
+        cat_options_en = ["Daily Homework & Lesson Plan", "Daily Attendance Status", "Monthly Attendance Summary", "Exam Performance & Result Report", "General Notice & Circular", "Fee Defaulters Reminder"]
+        cat_options_ur = ["روزانہ ہوم ورک اور لیسن پلان", "روزانہ حاضری کی رپورٹ", "ماہانہ حاضری کی سمری", "امتحان کا رزلٹ اور پرفارمنس", "جنرل نوٹس اور سرکلر", "فیس ڈیفالٹرز ریمائنڈر"]
         
         display_cats = cat_options_en if st.session_state.ui_lang == "English" else cat_options_ur
         
@@ -5135,9 +4932,6 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
         cat_index = display_cats.index(message_category)
         
         st.write("---")
-        
-        import datetime
-        import pandas as pd
         
         extra_details = ""
         attendance_status = "Present"
@@ -5219,8 +5013,7 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
                 target_list = []
                 for s in raw_target_list:
                     check_due = pd.read_sql(f"SELECT COUNT(*) FROM fees WHERE reg_id='{s[0]}' AND status='Unpaid'", conn).iloc[0,0]
-                    if check_due > 0:
-                        target_list.append(s)
+                    if check_due > 0: target_list.append(s)
             else:
                 target_list = raw_target_list
             
@@ -5274,27 +5067,18 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
         st.write("---")
         
         if not target_list:
-            if cat_index == 5:
-                st.success(tr("کوئی فیس ڈیفالٹر نہیں ہے! اس کلاس کے تمام طلباء کی فیس جمع ہو چکی ہے۔", "No fee defaulters! All students in this class have paid their fees."))
-            else:
-                st.info(tr("منتخب کردہ شرائط کے مطابق کوئی وصول کنندہ نہیں ملا۔", "No recipients found for the selected criteria."))
+            if cat_index == 5: st.success(tr("کوئی فیس ڈیفالٹر نہیں ہے! اس کلاس کے تمام طلباء کی فیس جمع ہو چکی ہے۔", "No fee defaulters! All students in this class have paid their fees."))
+            else: st.info(tr("منتخب کردہ شرائط کے مطابق کوئی وصول کنندہ نہیں ملا۔", "No recipients found for the selected criteria."))
         else:
             total_recipients = len(target_list)
             
-            if is_staff:
-                st.markdown(f"### &#128203; {tr('ہدف سامعین: سٹاف ممبرز', 'Target Audience: Staff Members')} ({total_recipients} {tr('ریکارڈز', 'Records')})", unsafe_allow_html=True)
+            if is_staff: st.markdown(f"### &#128203; {tr('ہدف سامعین: سٹاف ممبرز', 'Target Audience: Staff Members')} ({total_recipients} {tr('ریکارڈز', 'Records')})", unsafe_allow_html=True)
             else:
                 if cat_index == 4:
-                    if current_role == "Teacher":
-                        st.markdown(f"### &#128203; {tr('ہدف سامعین: آپ کی تفویض کردہ کلاس', 'Target Audience: Your Assigned Class')} ({total_recipients} {tr('ریکارڈز', 'Records')})", unsafe_allow_html=True)
-                    else:
-                        st.markdown(f"### &#128203; {tr(f'ہدف سامعین: طلباء ({notice_scope})', f'Target Audience: Students ({notice_scope})')} ({total_recipients} {tr('ریکارڈز', 'Records')})", unsafe_allow_html=True)
-                elif cat_index == 5:
-                    st.markdown(f"### &#128203; {tr(f'کلاس: {selected_class_wa} - فیس ڈیفالٹرز کی فہرست', f'Class: {selected_class_wa} - Fee Defaulters List')} ({total_recipients} {tr('طلباء', 'Students')})", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"### &#128203; {tr(f'کلاس: {selected_class_wa} - تمام طلباء کی فہرست', f'Class: {selected_class_wa} - All Students List')} ({total_recipients} {tr('طلباء', 'Students')})", unsafe_allow_html=True)
-            
-            import urllib.parse
+                    if current_role == "Teacher": st.markdown(f"### &#128203; {tr('ہدف سامعین: آپ کی تفویض کردہ کلاس', 'Target Audience: Your Assigned Class')} ({total_recipients} {tr('ریکارڈز', 'Records')})", unsafe_allow_html=True)
+                    else: st.markdown(f"### &#128203; {tr(f'ہدف سامعین: طلباء ({notice_scope})', f'Target Audience: Students ({notice_scope})')} ({total_recipients} {tr('ریکارڈز', 'Records')})", unsafe_allow_html=True)
+                elif cat_index == 5: st.markdown(f"### &#128203; {tr(f'کلاس: {selected_class_wa} - فیس ڈیفالٹرز کی فہرست', f'Class: {selected_class_wa} - Fee Defaulters List')} ({total_recipients} {tr('طلباء', 'Students')})", unsafe_allow_html=True)
+                else: st.markdown(f"### &#128203; {tr(f'کلاس: {selected_class_wa} - تمام طلباء کی فہرست', f'Class: {selected_class_wa} - All Students List')} ({total_recipients} {tr('طلباء', 'Students')})", unsafe_allow_html=True)
             
             st.markdown(f"""
             <div style='background-color: #e8f5e9; padding: 15px; border-radius: 8px; border: 2px solid #4caf50; margin-bottom: 20px;'>
@@ -5305,10 +5089,8 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
             
             school_name_upper = school_name.upper() if school_name else "SCHOOL"
             
-            if current_role == "Teacher":
-                footer_sign = f"Regards,\nClass Teacher ({selected_class_wa})\n{school_name_upper}"
-            else:
-                footer_sign = f"Regards,\n{school_name_upper} ADMINISTRATION"
+            if current_role == "Teacher": footer_sign = f"Regards,\nClass Teacher ({selected_class_wa})\n{school_name_upper}"
+            else: footer_sign = f"Regards,\n{school_name_upper} ADMINISTRATION"
                 
             contact_info = f"\nContact: {school_phone}" if school_phone else ""
             msg_footer = f"\n\n{footer_sign}{contact_info}"
@@ -5321,7 +5103,6 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
                     s_id = member[0]
                     s_name_msg = str(member[1]).strip()
                     s_phone = member[2]
-                    s_fname_msg, s_class, s_sec = "N/A", "Staff", "N/A"
                     
                     phone_raw = str(s_phone).strip() if s_phone and str(s_phone) != "None" else ""
                     if phone_raw.startswith("0"): phone_num = "92" + phone_raw[1:]
@@ -5348,12 +5129,9 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
                     
                     msg_header = f"*{school_name_upper}*\n{school_address}\n\nDate: {date_formatted}\nAsslam o Aaleikum Dear Parents\n\nStudent: *{s_name_msg}*\nFather: *{s_fname_msg}*\nClass: *{s_class} ({s_sec})*\n\n"
                     
-                    if cat_index == 0: 
-                        msg_body = f"HOME WORK:\n{extra_details}"
-                    elif cat_index == 1: 
-                        msg_body = f"Attendance Status: {attendance_status}"
-                    elif cat_index == 2: 
-                        msg_body = f"Monthly Report ({extra_details}): Satisfactory"
+                    if cat_index == 0: msg_body = f"HOME WORK:\n{extra_details}"
+                    elif cat_index == 1: msg_body = f"Attendance Status: {attendance_status}"
+                    elif cat_index == 2: msg_body = f"Monthly Report ({extra_details}): Satisfactory"
                     elif cat_index == 3:
                         if selected_exam_wa:
                             marks_df = pd.read_sql(f"SELECT subject, total_marks, obtained_marks FROM exam_marks WHERE exam_name='{selected_exam_wa}' AND reg_id='{s_id}'", conn)
@@ -5367,22 +5145,17 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
                                 marks_str += f"\n*Total Marks:* {grand_obt}/{grand_tot} ({perc:.1f}%)"
                                 msg_body = f"Result Details ({selected_exam_wa}):\n{marks_str}"
                                 if extra_details: msg_body += f"\n\n*Remarks:* {extra_details}"
-                            else: 
-                                msg_body = f"Result Details ({selected_exam_wa}):\nResult not entered yet."
-                        else: 
-                            msg_body = "Result Details:\nExam not selected or not available."
+                            else: msg_body = f"Result Details ({selected_exam_wa}):\nResult not entered yet."
+                        else: msg_body = "Result Details:\nExam not selected or not available."
                     
-                    elif cat_index == 4:
-                        msg_body = f"NOTICE / CIRCULAR:\n{extra_details}"
-                        
+                    elif cat_index == 4: msg_body = f"NOTICE / CIRCULAR:\n{extra_details}"
                     elif cat_index == 5: 
                         unpaid_fee = pd.read_sql(f"SELECT month, total FROM fees WHERE reg_id='{s_id}' AND status='Unpaid'", conn)
                         if not unpaid_fee.empty:
                             due_amount = unpaid_fee['total'].sum()
                             due_months = ", ".join(unpaid_fee['month'].tolist())
                             msg_body = f"FEE REMINDER:\nDear Parents, this is a gentle reminder that the fee for the month(s) of *{due_months}* amounting to *Rs {due_amount}* is pending. Kindly pay at your earliest convenience to avoid late fines.\n{extra_details}"
-                        else:
-                            continue
+                        else: continue
                     
                     disp_phone = phone_num if phone_num else "Missing"
                     disp_title = f"{idx}. {s_name_msg} (Father: {s_fname_msg}) - [Phone: {disp_phone}]"
@@ -5390,8 +5163,7 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
                 msg_text = f"{msg_header}{msg_body}{msg_footer}"
                 clean_ph = ''.join(filter(str.isdigit, phone_num)) if phone_num else ""
                 
-                if clean_ph:
-                    auto_send_data.append({"phone": clean_ph, "name": s_name_msg, "message": msg_text})
+                if clean_ph: auto_send_data.append({"phone": clean_ph, "name": s_name_msg, "message": msg_text})
 
                 encoded_msg = urllib.parse.quote(msg_text)
                 wa_link = f"https://api.whatsapp.com/send?phone={clean_ph}&text={encoded_msg}" if clean_ph else "#"
@@ -5401,8 +5173,7 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
                     if phone_num and len(clean_ph) >= 10:
                         btn_html = f"""<a href="{wa_link}" target="_blank" style='background-color: #25D366; color: white; padding: 10px 18px; text-decoration: none; font-size: 15px; font-weight: bold; border-radius: 5px; display: inline-block; text-align: center; width: 100%;'>&#128172; {tr('واٹس ایپ بھیجیں', 'Send WhatsApp')}</a>"""
                         c_b1.markdown(btn_html, unsafe_allow_html=True)
-                    else:
-                        c_b1.error(tr("فون نمبر غائب ہے", "Phone missing"))
+                    else: c_b1.error(tr("فون نمبر غائب ہے", "Phone missing"))
                     c_b2.text_area(tr("میسج کا پیش نظارہ", "Full Message Preview"), value=msg_text, height=270, key=f"prev_{s_id}_{msg_date}_{cat_index}_{idx}")
 
         st.write("---")
@@ -5412,9 +5183,6 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
         if st.button(tr("ایک کلک سے تمام لسٹ کو میسج سینڈ کریں", "Send Messages to All with 1-Click"), type="primary"):
             try:
                 import pyautogui
-                import time
-                import random
-                import webbrowser
                 
                 progress_bar = st.progress(0)
                 status_text = st.empty()
@@ -5426,8 +5194,7 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
                     st.error(tr("میسج بھیجنے کے لیے کوئی درست نمبر موجود نہیں ہے۔", "No valid numbers found to send messages."))
                 else:
                     for data in auto_send_data:
-                        if len(data['phone']) < 10:
-                            continue
+                        if len(data['phone']) < 10: continue
                             
                         current_msg += 1
                         status_text.info(tr(f"میسج بھیجا جا رہا ہے: {data['name']} ({data['phone']}) ... ({current_msg}/{total_msgs})", f"Sending message to: {data['name']} ({data['phone']}) ... ({current_msg}/{total_msgs})"))
@@ -5453,7 +5220,6 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
         st.write("---")
         with st.expander(tr("یا بلک سینڈر کے لیے ایکسل ڈاؤن لوڈ کریں (Optional Backup)", "Or Download Excel for Bulk Sender (Optional Backup)")):
             export_df = pd.DataFrame(auto_send_data)
-            import io
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 export_df.to_excel(writer, index=False, sheet_name='WhatsApp_Data')
@@ -5469,15 +5235,17 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
 elif core_choice in ["پرفارمنس", "Performance"]:
     st.markdown(f"<h2 class='no-print'>📈 {tr('کارکردگی کا جائزہ', 'Performance Dashboard')} - {tr(sub_choice, sub_choice)}</h2>", unsafe_allow_html=True)
     
-    if sub_choice == "Student Performance":
+    if sub_choice in ["Student Performance", "طلباء کی کارکردگی"]:
         c_p1, c_p2 = st.columns(2)
         p_cls = c_p1.selectbox(tr("کلاس منتخب کریں", "Select Class"), classes_list, key="perf_s_cls")
         stu_list = pd.read_sql(f"SELECT reg_id, name, name_en FROM students WHERE class='{p_cls}'", conn)
+        
         if not stu_list.empty:
             stu_dict = {f"{get_disp_val(r['name'], r.get('name_en'))} (Reg: {r['reg_id']})": r['reg_id'] for _, r in stu_list.iterrows()}
             p_stu_name = c_p2.selectbox(tr("طالب علم منتخب کریں", "Select Student"), list(stu_dict.keys()))
             s_reg = stu_dict[p_stu_name]
             st.write("---")
+            
             att_tot = pd.read_sql(f"SELECT COUNT(*) FROM attendance WHERE type='طالب علم' AND person_id='{s_reg}'", conn).iloc[0,0]
             att_pres = pd.read_sql(f"SELECT COUNT(*) FROM attendance WHERE type='طالب علم' AND person_id='{s_reg}' AND status IN ('Present', '🟢 Present', '🟢 حاضر')", conn).iloc[0,0]
             att_perc = (att_pres / att_tot * 100) if att_tot > 0 else 0
@@ -5500,7 +5268,7 @@ elif core_choice in ["پرفارمنس", "Performance"]:
             else: st.info(tr("امتحانات کا کوئی ریکارڈ نہیں ملا۔", "No exam records found."))
         else: st.warning(tr("اس کلاس میں کوئی طالب علم موجود نہیں۔", "No student found in this class."))
 
-    elif sub_choice == "Staff Performance":
+    elif sub_choice in ["Staff Performance", "سٹاف کی کارکردگی"]:
         try: 
             cursor.execute("ALTER TABLE staff ADD COLUMN assigned_class TEXT")
             cursor.execute("ALTER TABLE staff ADD COLUMN assigned_sec TEXT")
@@ -5520,17 +5288,14 @@ elif core_choice in ["پرفارمنس", "Performance"]:
             
             st.write("---")
             
-            # 1. حاضری کا سکور (سب سے اہم)
             s_att_tot = pd.read_sql(f"SELECT COUNT(*) FROM attendance WHERE type='سٹاف' AND person_id='{t_id}'", conn).iloc[0,0]
             s_att_pres = pd.read_sql(f"SELECT COUNT(*) FROM attendance WHERE type='سٹاف' AND person_id='{t_id}' AND status IN ('Present', '🟢 Present', '🟢 حاضر')", conn).iloc[0,0]
             s_att_perc = (s_att_pres / s_att_tot * 100) if s_att_tot > 0 else 0
             
-            # 2. لیسن پلان کا سکور
             lp_tot = pd.read_sql(f"SELECT COUNT(*) FROM lesson_plan WHERE teacher_id='{actual_name}'", conn).iloc[0,0]
             lp_comp = pd.read_sql(f"SELECT COUNT(*) FROM lesson_plan WHERE teacher_id='{actual_name}' AND status IN ('Completed', 'مکمل ہو گیا')", conn).iloc[0,0]
             lp_perc = (lp_comp / lp_tot * 100) if lp_tot > 0 else 0
             
-            # 3. 🟢 ہیلپ ڈیسک پینلٹی (Penalty) - ہر پینڈنگ شکایت پر 1% کٹوتی
             tot_comps, res_comps, pending_comps = 0, 0, 0
             comp_perc = 100.0
             penalty_score = 0.0
@@ -5545,22 +5310,18 @@ elif core_choice in ["پرفارمنس", "Performance"]:
                     tot_comps = len(t_comps)
                     res_comps = len(t_comps[t_comps['status'] == 'Resolved'])
                     pending_comps = tot_comps - res_comps
-                except: 
-                    pass
+                except: pass
                 
                 if tot_comps > 0:
                     comp_perc = (res_comps / tot_comps) * 100
-                    # 🔴 1 شکایت پینڈنگ = 1% کٹوتی
                     penalty_score = pending_comps * 1.0 
                     
-            # 🌟 4. نیا متوازن مجموعی پرفارمنس سکور
             is_teacher = ("Teacher" in str(t_row['designation']) or "استاد" in str(t_row['designation']))
             if is_teacher:
-                # 50% حاضری، 50% لیسن پلان کا ویٹج - اور پھر شکایت کی 1% کٹوتی
                 base_score = (s_att_perc * 0.5) + (lp_perc * 0.5)
-                overall_score = max(0, base_score - penalty_score) # سکور مائنس میں نہ جائے
+                overall_score = max(0, base_score - penalty_score)
             else:
-                overall_score = s_att_perc # نان ٹیچنگ سٹاف کے لیے صرف حاضری
+                overall_score = s_att_perc
                 
             score_color = "#2e7d32" if overall_score >= 80 else ("#f57f17" if overall_score >= 50 else "#c62828")
             score_bg = "#e8f5e9" if overall_score >= 80 else ("#fff3e0" if overall_score >= 50 else "#ffebee")
@@ -5596,7 +5357,7 @@ elif core_choice in ["پرفارمنس", "Performance"]:
             else: st.info(tr("ٹائم ٹیبل میں کوئی کلاس الاٹ نہیں کی گئی۔", "No classes allotted in timetable."))
         else: st.warning(tr("سٹاف کا کوئی ریکارڈ موجود نہیں۔", "No staff records found."))
 
-    elif sub_choice == "Overall School Performance":
+    elif sub_choice in ["Overall School Performance", "مکمل سکول کا جائزہ"]:
         o_stu = pd.read_sql("SELECT COUNT(*) FROM students", conn).iloc[0,0]
         o_stf = pd.read_sql("SELECT COUNT(*) FROM staff", conn).iloc[0,0]
         
@@ -5633,7 +5394,6 @@ elif core_choice in ["ڈسپلن اور میرٹ", "Discipline & Merit"]:
     st.markdown(f"<h2 class='no-print'>⭐ {tr('سٹوڈنٹ ڈسپلن اور میرٹ سسٹم', 'Student Discipline & Merit System')}</h2>", unsafe_allow_html=True)
     st.write(tr("طلباء کی کارکردگی، اخلاقیات، اور نظم و ضبط کا ریکارڈ رکھیں۔", "Track student performance, behavior, and disciplinary records."))
     
-    # 🟢 آٹو ڈیٹا بیس ٹیبل بنانا (اگر پہلے سے موجود نہ ہو)
     cursor.execute('''CREATE TABLE IF NOT EXISTS discipline (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         date TEXT,
@@ -5648,7 +5408,6 @@ elif core_choice in ["ڈسپلن اور میرٹ", "Discipline & Merit"]:
 
     tab_add, tab_report, tab_leaderboard, tab_certs = st.tabs(["✨ " + tr("نیا ریکارڈ درج کریں", "Add New Record"), "📜 " + tr("بیہیویئر رپورٹ اور پرنٹ", "Behavior Report & Print"), "🏆 " + tr("سٹار طلباء لیڈر بورڈ", "Star Students Leaderboard"), "🏅 " + tr("سرٹیفکیٹس", "Certificates")])
 
-    # 🟢 ڈیٹا بیس سے تمام کالمز (بشمول gender) نکالنا
     try: 
         st_df = pd.read_sql("SELECT * FROM students WHERE status='Active'", conn)
     except: 
@@ -5850,7 +5609,6 @@ elif core_choice in ["ڈسپلن اور میرٹ", "Discipline & Merit"]:
         is_eng = st.session_state.ui_lang == "English"
         t_dir = "ltr" if is_eng else "rtl"
         
-        # 🟢 نستعلیق فونٹ کا ویب لنک
         if is_eng:
             font_css = ""
             f_family = "'Arial', sans-serif"
@@ -5920,13 +5678,11 @@ elif core_choice in ["ڈسپلن اور میرٹ", "Discipline & Merit"]:
             school_n_cert = school_name.upper() if school_name else "SCHOOL SYSTEM"
             watermark_html = f"""<div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-image: url('{logo_src_b64}'); background-position: center; background-repeat: no-repeat; background-size: 55%; opacity: 0.08; z-index: 0; pointer-events: none;"></div>""" if logo_src_b64 else ""
             
-            # 🟢 Flexbox کا استعمال کر کے لے آؤٹ کو فکس کر دیا گیا ہے
             cert_html = f"""
             {font_css}
             <div style="padding: 15px; background: {bg_color}; font-family: {f_family}; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); position: relative; overflow: hidden; width: 100%; max-width: 1050px; height: 660px; margin: 0 auto; box-sizing: border-box; text-align: center; page-break-inside: avoid;" dir="{t_dir}">
                 <div style="border: 4px double white; padding: 25px; border-radius: 10px; background: rgba(255, 255, 255, 0.95); position: relative; height: 100%; box-sizing: border-box; z-index: 1; display: flex; flex-direction: column; justify-content: space-between;">
                     
-                    <!-- Watermark Layer -->
                     {watermark_html}
                     
                     <div style="position: absolute; top: -10px; left: -10px; width: 50px; height: 50px; border-top: 5px solid {ribbon_color}; border-left: 5px solid {ribbon_color}; z-index: 2;"></div>
@@ -5989,7 +5745,6 @@ elif core_choice in ["ڈسپلن اور میرٹ", "Discipline & Merit"]:
 elif core_choice in ["نوٹس بورڈ", "Notice Board"]:
     st.markdown(f"<h2 class='no-print'>📢 {tr('نوٹس بورڈ', 'Notice Board')} - {tr(sub_choice, sub_choice)}</h2>", unsafe_allow_html=True)
     
-    # 🟢 اگر یوزر "والدین" (Guardian) ہے تو اسے صرف نوٹس دیکھنے کا اختیار دیں (بنانے یا پرنٹ کا نہیں)
     if st.session_state.current_role == "Guardian":
         st.markdown(f"#### 📌 {tr('سکول کے تازہ ترین نوٹسز اور سرکولرز', 'Latest School Notices & Circulars')}")
         df_notices = pd.read_sql("SELECT id, date as Date, audience as Audience, title as Title, details as Details FROM notices WHERE audience IN ('All', 'Students') ORDER BY id DESC", conn)
@@ -6002,8 +5757,7 @@ elif core_choice in ["نوٹس بورڈ", "Notice Board"]:
             st.info(tr("کوئی نوٹس موجود نہیں۔", "No notices found."))
             
     else:
-        # 🟢 ایڈمن اور ٹیچر کے لیے پرانا مکمل نظام (نیا نوٹس بنانا، پرنٹ اور ڈیلیٹ کرنا)
-        if sub_choice == "New Notice":
+        if sub_choice in ["New Notice", "نیا نوٹس"]:
             with st.form("notice_form"):
                 n_title = st.text_input(tr("نوٹس کا عنوان *", "Notice Title *"))
                 n_aud = st.selectbox(tr("کس کے لیے ہے؟ (Audience)", "Audience"), ["All", "Students", "Staff"])
@@ -6017,7 +5771,7 @@ elif core_choice in ["نوٹس بورڈ", "Notice Board"]:
                     else:
                         st.error(tr("عنوان اور تفصیل لکھنا لازمی ہے۔", "Title and Details are required."))
                         
-        elif sub_choice == "All Notices":
+        elif sub_choice in ["All Notices", "تمام نوٹسز"]:
             df_notices = pd.read_sql("SELECT id, date as Date, audience as Audience, title as Title, details as Details FROM notices ORDER BY id DESC", conn)
             if not df_notices.empty:
                 logo_base64_html = f'<img src="{logo_src_b64}" style="max-width: 80px; max-height: 80px; object-fit: contain;">' if logo_src_b64 else '<div style="font-size:35px;">🏫</div>'
@@ -6048,7 +5802,7 @@ elif core_choice in ["نوٹس بورڈ", "Notice Board"]:
                                 </tr>
                             </table>
                             
-                            <div style="direction: rtl; text-align: right;">
+                            <div style="direction: {t['dir']}; text-align: {t['align']};">
                                 <h3 style="font-size: 18px; color: #005b36; margin-bottom: 10px; font-family: 'Arial', sans-serif;">{tr('عنوان:', 'Subject:')} {r['Title']}</h3>
                                 <div style="font-size: 16px; line-height: 1.8; margin-bottom: 20px; min-height: 150px; white-space: pre-wrap; font-family: 'Jameel Noori Nastaleeq', 'Urdu Typesetting', Arial, sans-serif;">
                                     {r['Details']}
@@ -6154,7 +5908,6 @@ elif core_choice == "ID Card Maker":
                     extra_val = desig_val
                     qr_data = f"Staff ID: {r_id}"
                 
-                # 🟢 کیو-آر کوڈ جنریٹ کرنے کا لائیو لنک
                 qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=50x50&data={urllib.parse.quote(qr_data)}"
                 
                 prop_text = tr(f"یہ کارڈ {school_name} کی ملکیت ہے۔ ملنے پر سکول آفس میں جمع کروائیں۔", f"Property of {school_name}. If found, return to school office.")
@@ -6172,7 +5925,7 @@ elif core_choice == "ID Card Maker":
                         </div>
                     </div>
                     <div style="text-align: center; margin-top: 5px; position: relative; z-index: 1; display: flex; justify-content: space-between; padding: 0 10px;">
-                        <div style="width: 35px;"></div> <!-- Spacer -->
+                        <div style="width: 35px;"></div>
                         <div>
                             <img src="{photo_src}" style="width: 55px; height: 55px; border-radius: 50%; border: 2px solid #005b36; object-fit: cover; background: white;">
                         </div>
@@ -6277,7 +6030,10 @@ elif core_choice in ["رپورٹس", "Reports"]:
         c1, c2, c3, c4 = st.columns(4)
         filter_class = c1.selectbox(tr("کلاس", "Class"), [tr("سب", "All")] + classes_list)
         filter_section = c2.selectbox(tr("سیکشن", "Section"), [tr("سب", "All"), "A", "B", "C", "D"])
-    if st.button(tr("رپورٹ تیار کریں", "Generate Report"), type="primary"):
+        filter_gender = c3.selectbox(tr("جنس", "Gender"), [tr("سب", "All"), tr("لڑکا", "Boy"), tr("لڑکی", "Girl")])
+        search_query = c4.text_input(tr("تلاش", "Search"))
+        
+        if st.button(tr("رپورٹ تیار کریں", "Generate Report"), type="primary"):
             q_cond = []
             if filter_class != tr("سب", "All"): q_cond.append(f"class='{filter_class}'")
             if filter_section != tr("سب", "All"): q_cond.append(f"section='{filter_section}'")
@@ -6685,7 +6441,7 @@ elif core_choice in ["ڈیٹا بیک اپ", "Data Backup"]:
         st.subheader(tr("📤 ڈیٹا ریسٹور کریں (ان لمیٹڈ سائز)", "📤 Restore Backup (Unlimited Size)"))
         st.write(tr("اپنی بیک اپ (.db) فائل یہاں اپلوڈ کریں۔ اب سائز کی کوئی حد نہیں ہے۔", "Upload your backup (.db) file here. There is no size limit now."))
         
-        uploaded_backup = st.file_uploader(tr("بیک اپ فائل (.db) منتخب کریں", "Select Backup File (.db)"), type=['db'], max_upload_size=2000)
+        uploaded_backup = st.file_uploader(tr("بیک اپ فائل (.db) منتخب کریں", "Select Backup File (.db)"), type=['db'])
         
         if uploaded_backup is not None:
             if st.button(tr("سسٹم میں ڈیٹا واپس لائیں (Restore Now)", "Restore Data Now"), type="primary"):
@@ -6695,10 +6451,6 @@ elif core_choice in ["ڈیٹا بیک اپ", "Data Backup"]:
                         f.write(uploaded_backup.getbuffer())
                         
                     st.success(tr("ڈیٹا کامیابی سے ریسٹور ہو گیا! براہ کرم سافٹ ویئر کو ری سٹارٹ کریں یا پیج ریفریش (F5) کریں۔", "Data restored successfully! Please restart the software or refresh the page (F5)."))
-                    
-                    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
-                    cursor = conn.cursor()
-                    
                 except Exception as e:
                     st.error(f"{tr('فائل ریسٹور کرنے میں مسئلہ آیا:', 'Error restoring file:')} {e}")
 
@@ -6761,6 +6513,7 @@ elif core_choice in ["پیرنٹ پورٹل", "Parent Portal"]:
                 for _, row in lp.iterrows():
                     icon = get_smart_icon(row[sub_col])
                     raw_stat = str(row[stat_col])
+                    
                     if "Complete" in raw_stat or "مکمل" in raw_stat:
                         stat_disp = "مکمل ہو گیا ✅" if st.session_state.ui_lang == "اردو" else "Completed ✅"
                         stat_color, stat_bg = "#2e7d32", "#e8f5e9"
@@ -6792,6 +6545,7 @@ elif core_choice in ["پیرنٹ پورٹل", "Parent Portal"]:
             st.markdown(f"#### 📅 {tr('پچھلے 30 دن کی حاضری کا ریکارڈ', 'Attendance Record (Last 30 Days)')}")
             q_cols_att = "date as 'تاریخ', status as 'حاضری'" if st.session_state.ui_lang == "اردو" else "date as 'Date', status as 'Attendance'"
             att = pd.read_sql(f"SELECT {q_cols_att} FROM attendance WHERE person_id='{s_reg}' AND type='طالب علم' ORDER BY date DESC LIMIT 30", conn)
+            
             if not att.empty:
                 att_col_name = 'حاضری' if st.session_state.ui_lang == "اردو" else 'Attendance'
                 if st.session_state.ui_lang == "اردو":
@@ -6806,6 +6560,7 @@ elif core_choice in ["پیرنٹ پورٹل", "Parent Portal"]:
             st.markdown(f"#### 🧾 {tr('فیس کے چالان اور ادائیگی کی تفصیل', 'Fee Challans & Payment Details')}")
             q_cols_fee = "month as 'مہینہ', total as 'رقم', status as 'سٹیٹس', date as 'تاریخ'" if st.session_state.ui_lang == "اردو" else "month as 'Month', total as 'Amount', status as 'Status', date as 'Date'"
             fees = pd.read_sql(f"SELECT {q_cols_fee} FROM fees WHERE reg_id='{s_reg}' ORDER BY rowid DESC", conn)
+            
             if not fees.empty:
                 st.dataframe(fees, use_container_width=True, hide_index=True)
             else:
@@ -6823,6 +6578,7 @@ elif core_choice in ["پیرنٹ پورٹل", "Parent Portal"]:
             with st.form("leave_req_form", clear_on_submit=True):
                 l_date = st.date_input(tr("کس تاریخ کی چھٹی چاہیے؟", "Date for leave?"), datetime.date.today())
                 l_reason = st.text_area(tr("چھٹی کی وجہ بیان کریں (بیماری، ضروری کام وغیرہ) *", "Reason for leave (Illness, urgent work etc) *"))
+                
                 if st.form_submit_button(tr("درخواست بھیجیں (Submit Application)", "Submit Application"), type="primary"):
                     if l_reason.strip():
                         def_remark = "انتظار فرمائیں..." if st.session_state.ui_lang == "اردو" else "Please wait..."
@@ -6836,6 +6592,7 @@ elif core_choice in ["پیرنٹ پورٹل", "Parent Portal"]:
             st.markdown(f"**{tr('آپ کی پچھلی درخواستوں کا ریکارڈ:', 'Your Past Leave Requests Record:')}**")
             q_cols_req = "date as 'تاریخ', reason as 'وجہ', status as 'سٹیٹس', admin_remarks as 'سکول کا جواب'" if st.session_state.ui_lang == "اردو" else "date as 'Date', reason as 'Reason', status as 'Status', admin_remarks as 'School Reply'"
             past_req = pd.read_sql(f"SELECT {q_cols_req} FROM leave_requests WHERE reg_id='{s_reg}' ORDER BY id DESC", conn)
+            
             if not past_req.empty:
                 def style_status(val):
                     if st.session_state.ui_lang == "اردو":
@@ -6877,7 +6634,6 @@ elif core_choice in ["پیرنٹ پورٹل", "Parent Portal"]:
             except Exception as e:
                 st.error(tr("ٹرانسپورٹ سسٹم فی الحال اپڈیٹ ہو رہا ہے۔", "Transport system is currently being updated."))
 
-        # 🟢 ہیلپ ڈیسک اور شکایات (والدین کے لیے)
         with p_tab6:
             st.markdown(f"#### 🎧 {tr('سکول انتظامیہ کو شکایت یا تجویز بھیجیں', 'Send Complaint/Feedback to School Admin')}")
             
@@ -6951,7 +6707,6 @@ elif core_choice in ["لائبریری", "Library"]:
             st.info(tr("لائبریری میں کوئی کتاب موجود نہیں۔", "No books in library."))
 
     elif sub_choice in ["Issue / Return Books", "کتاب جاری / واپس کریں"]:
-        # 🟢 ٹیبز کی بجائے ریڈیو بٹن کا استعمال کیا گیا ہے تاکہ فارم چھپے نہیں
         action_type = st.radio(tr("آپ کیا کرنا چاہتے ہیں؟", "What do you want to do?"), [tr("کتاب جاری کریں (Issue Book)", "Issue Book"), tr("کتاب واپس لیں (Return Book)", "Return Book")], horizontal=True)
         st.write("---")
         
@@ -7019,7 +6774,7 @@ elif core_choice in ["لائبریری", "Library"]:
                 due_date_obj = datetime.datetime.strptime(due_date_str, "%Y-%m-%d").date()
                 today_obj = datetime.date.today()
                 late_days = (today_obj - due_date_obj).days if today_obj > due_date_obj else 0
-                fine_amt = late_days * 20 # 20 روپے فی دن جرمانہ
+                fine_amt = late_days * 20 
                 
                 if late_days > 0:
                     st.error(f"&#9888;&#65039; {tr('یہ کتاب لیٹ ہے! تاخیر:', 'This book is late! Delayed by:')} {late_days} Days. | {tr('جرمانہ:', 'Fine:')} Rs {fine_amt}")
@@ -7072,7 +6827,6 @@ elif core_choice in ["گیٹ سیکیورٹی", "Gate Security"]:
                     cursor.execute("INSERT INTO visitors (date, time_in, time_out, name, phone, purpose, to_meet, status) VALUES (?, ?, '-', ?, ?, ?, ?, 'Inside')", (date_today, time_in, v_name, v_phone, v_purp, v_meet))
                     conn.commit()
                     
-                    # پرنٹ ایبل گیٹ پاس
                     pass_id = pd.read_sql("SELECT MAX(id) FROM visitors", conn).iloc[0, 0]
                     t = {"align": "left", "dir": "ltr"} if st.session_state.ui_lang == "English" else {"align": "right", "dir": "rtl"}
                     pass_html = f"""
@@ -7119,7 +6873,6 @@ elif core_choice in ["گیٹ سیکیورٹی", "Gate Security"]:
         with st.expander(tr("تلاش اور فلٹرز (Search & Filters)", "Search & Filters"), expanded=True):
             c_sh1, c_sh2, c_sh3 = st.columns(3)
             
-            # 🟢 ڈبل ڈیٹ (Date Range) کا فلٹر
             f_date = c_sh1.date_input(tr("تاریخ کی حد (Date Range)", "Date Range"), value=[], help=tr("دو تاریخوں کے درمیان ریکارڈ دیکھنے کے لیے", "To view records between two dates"))
             f_name = c_sh2.text_input(tr("نام سے تلاش کریں", "Search by Name"), placeholder="مثلاً: Ali")
             f_phone = c_sh3.text_input(tr("فون نمبر / CNIC", "Phone / CNIC"), placeholder="مثلاً: 0300... یا 38403...")
@@ -7129,13 +6882,10 @@ elif core_choice in ["گیٹ سیکیورٹی", "Gate Security"]:
 
         base_query = "SELECT date as 'Date', name as 'Name', phone as 'Phone/CNIC', to_meet as 'Whom to Meet', time_in as 'Time In', time_out as 'Time Out', status as 'Status' FROM visitors WHERE 1=1"
         
-        # 🟢 تاریخ کے حساب سے کیوری جنریٹ کرنا
         if f_date:
             if len(f_date) == 2:
-                # اگر دو تاریخیں سلیکٹ کی گئی ہیں (شروع اور ختم)
                 base_query += f" AND date >= '{f_date[0].strftime('%Y-%m-%d')}' AND date <= '{f_date[1].strftime('%Y-%m-%d')}'"
             elif len(f_date) == 1:
-                # اگر صرف ایک تاریخ سلیکٹ کی گئی ہے
                 base_query += f" AND date = '{f_date[0].strftime('%Y-%m-%d')}'"
                 
         if f_name.strip():
@@ -7154,7 +6904,6 @@ elif core_choice in ["گیٹ سیکیورٹی", "Gate Security"]:
         if not v_hist.empty:
             st.success(f"✅ {tr('کل', 'Total')} **{len(v_hist)}** {tr('ریکارڈز ملے', 'records found')}")
             
-            # پرنٹنگ کے لیے ڈیٹا فریم کو الگ متغیر میں محفوظ کر رہے ہیں
             print_df = v_hist.copy()
             
             if st.session_state.ui_lang == "اردو":
@@ -7163,7 +6912,6 @@ elif core_choice in ["گیٹ سیکیورٹی", "Gate Security"]:
                 
             st.dataframe(v_hist, use_container_width=True, hide_index=True)
             
-            # 🟢 وزیٹر ہسٹری کا پرنٹ بٹن
             st.write("")
             if st.button("🖨️ " + tr("یہ ہسٹری پرنٹ کریں (Print History)", "Print this History"), type="primary", use_container_width=True):
                 t = {"align": "left", "dir": "ltr"} if st.session_state.ui_lang == "English" else {"align": "right", "dir": "rtl"}
@@ -7258,7 +7006,6 @@ elif core_choice in ["ہیلپ ڈیسک (شکایات)", "Helpdesk"]:
     if not s_id or s_id == "None" or s_id == "N/A":
         s_id = current_u.replace('staff_', '')
     
-    # 🟢 سمارٹ فلٹر: ٹیچر کو صرف اس کی کلاس کی شکایات دکھائیں
     if current_role == "Teacher":
         st.info(tr("یہاں آپ کو صرف آپ کی تفویض کردہ (Assigned) کلاس کے طلباء کی شکایات اور تجاویز نظر آئیں گی۔", "Here you will only see complaints and suggestions from students in your assigned class."))
         try:
@@ -7283,7 +7030,6 @@ elif core_choice in ["ہیلپ ڈیسک (شکایات)", "Helpdesk"]:
         pending_comps = comp_df[comp_df['status'] == 'Pending']
         resolved_comps = comp_df[comp_df['status'] != 'Pending']
         
-        # 🟢 رول بیسڈ ٹیبز (ایڈمن کے لیے تیسرا اینالیٹکس ٹیب شامل کیا گیا ہے)
         if current_role in ["Admin", "Operator"]:
             tab_new, tab_old, tab_analytics = st.tabs([
                 f"&#128308; {tr('نئی شکایات', 'Pending Complaints')} ({len(pending_comps)})", 
@@ -7295,7 +7041,7 @@ elif core_choice in ["ہیلپ ڈیسک (شکایات)", "Helpdesk"]:
                 f"&#128308; {tr('نئی شکایات', 'Pending Complaints')} ({len(pending_comps)})", 
                 f"&#128994; {tr('حل شدہ', 'Resolved')} ({len(resolved_comps)})"
             ])
-            tab_analytics = None # ٹیچر کے لیے یہ غائب رہے گا
+            tab_analytics = None 
         
         with tab_new:
             if not pending_comps.empty:
@@ -7323,7 +7069,6 @@ elif core_choice in ["ہیلپ ڈیسک (شکایات)", "Helpdesk"]:
             else:
                 st.info(tr("کوئی پرانی شکایت موجود نہیں۔", "No resolved complaints found."))
                 
-        # 🟢 ایڈمن اینالیٹکس اور فلٹرز والا ٹیب
         if tab_analytics:
             with tab_analytics:
                 st.markdown("### &#128202; " + tr("شکایات کا تجزیہ اور اسیسمنٹ (Filters)", "Complaints Analytics & Assessment"), unsafe_allow_html=True)
@@ -7389,7 +7134,7 @@ elif core_choice in ["ہیلپ ڈیسک (شکایات)", "Helpdesk"]:
                         disp_df.columns = ['Date', 'Sender', 'Class', 'Subject', 'Status']
                         
                     st.dataframe(disp_df, use_container_width=True, hide_index=True)
-# 🟢 پرنٹ رپورٹ بٹن (صرف ایڈمن کے لیے)
+
                     st.write("")
                     if st.button("🖨️ " + tr("یہ تجزیاتی رپورٹ پرنٹ کریں", "Print this Analytics Report"), type="primary", use_container_width=True):
                         t = {"align": "left", "dir": "ltr"} if st.session_state.ui_lang == "English" else {"align": "right", "dir": "rtl"}
@@ -7428,7 +7173,6 @@ elif core_choice in ["ہیلپ ڈیسک (شکایات)", "Helpdesk"]:
     else:
         st.info(tr("سسٹم میں تاحال کوئی متعلقہ شکایت یا تجویز درج نہیں کی گئی۔", "No relevant complaints or suggestions registered in the system yet."))
 
-
 # ================= 16. اے آئی مواد جنریٹر =================
 elif core_choice in ["اے آئی جنریٹر", "AI Generator"]:
     st.markdown(f"<h2 class='no-print'>🤖 {tr('اے آئی مواد جنریٹر (AI Content Generator)', 'AI Content Generator')}</h2>", unsafe_allow_html=True)
@@ -7457,15 +7201,15 @@ elif core_choice in ["اے آئی جنریٹر", "AI Generator"]:
                 try:
                     if "اردو" in lang_choice:
                         if "مضمون" in content_type or "Essay" in content_type:
-                            generated_text = f"""### عنوان: {topic_prompt}\n\n**1. تمہید اور تعارف:**\nزندگی کے ہر شعبے میں {topic_prompt} کی اہمیت ایک مسلمہ حقیقت ہے۔ یہ ایک ایسا موضوع ہے جس نے نہ صرف انفرادی بلکہ اجتماعی سطح پر انسانی معاشرے کو متاثر کیا ہے۔ تاریخ گواہ ہے کہ جن قوموں نے اس اصول کو اپنایا، انھوں نے دنیا بھر میں سرخروئی حاصل کی۔\n\n**2. موضوع کی اہمیت و افادیت:**\nجب ہم اس کا گہرائی سے مطالعہ کرتے ہیں تو یہ بات واضح ہوتی ہے کہ {topic_prompt} کے بغیر کامیابی کا حصول ناممکن ہے۔ یہ انسان کے اندر نظم و ضبط، عزم صمیم اور آگے بڑھنے کی لگن پیدا کرتا ہے۔ طالب علموں کے لیے بالخصوص یہ وہ زینہ ہے جس پر چڑھ کر وہ بلند ترین منازل طے کر سکتے ہیں۔\n\n**3. معاشرتی اور اخلاقی پہلو:**\nمعاشرے کی تشکیل میں ایسی اقدار کا بڑا ہاتھ ہوتا ہے۔ ہمیں چاہیے کہ ہم اپنے گھروں اور سکولوں میں بچوں کی تربیت اسی نہج پر کریں تاکہ وہ بڑے ہو کر ایک ذمہ دار شہری بن سکیں۔ دارالخدیجہ سکول سسٹم جیسے ادارے اسی مقصد کے تحت طلباء میں یہ روح بیدار کر رہے ہیں۔\n\n**4. چیلنجز اور ان کا حل:**\nبلاشبہ اس راہ میں کچھ مشکلات بھی حائل ہوتی ہیں، لیکن پختہ ارادہ اور مسلسل محنت تمام رکاوٹوں کو دور کر دیتی ہے۔ ہمیں سستی اور کاہلی کو چھوڑ کر عملی میدان میں اترنا ہوگا۔\n\n**5. نتیجہ اور سفارشات:**\nآخر میں اس عزم کا اعادہ کرنا ضروری ہے کہ ہم {topic_prompt} کو اپنی زندگی کا شعار بنائیں گے۔ یہی وہ واحد راستہ ہے جو ہمیں ایک روشن، خوشحال اور ترقی یافتہ مستقبل کی طرف لے جاتا ہے۔"""
+                            generated_text = f"### عنوان: {topic_prompt}\n\n**1. تمہید اور تعارف:**\nزندگی کے ہر شعبے میں {topic_prompt} کی اہمیت ایک مسلمہ حقیقت ہے۔ یہ ایک ایسا موضوع ہے جس نے نہ صرف انفرادی بلکہ اجتماعی سطح پر انسانی معاشرے کو متاثر کیا ہے۔ تاریخ گواہ ہے کہ جن قوموں نے اس اصول کو اپنایا، انھوں نے دنیا بھر میں سرخروئی حاصل کی۔\n\n**2. موضوع کی اہمیت و افادیت:**\nجب ہم اس کا گہرائی سے مطالعہ کرتے ہیں تو یہ بات واضح ہوتی ہے کہ {topic_prompt} کے بغیر کامیابی کا حصول ناممکن ہے۔ یہ انسان کے اندر نظم و ضبط، عزم صمیم اور آگے بڑھنے کی لگن پیدا کرتا ہے۔ طالب علموں کے لیے بالخصوص یہ وہ زینہ ہے جس پر چڑھ کر وہ بلند ترین منازل طے کر سکتے ہیں۔\n\n**3. معاشرتی اور اخلاقی پہلو:**\nمعاشرے کی تشکیل میں ایسی اقدار کا بڑا ہاتھ ہوتا ہے۔ ہمیں چاہیے کہ ہم اپنے گھروں اور سکولوں میں بچوں کی تربیت اسی نہج پر کریں تاکہ وہ بڑے ہو کر ایک ذمہ دار شہری بن سکیں۔ دارالخدیجہ سکول سسٹم جیسے ادارے اسی مقصد کے تحت طلباء میں یہ روح بیدار کر رہے ہیں۔\n\n**4. چیلنجز اور ان کا حل:**\nبلاشبہ اس راہ میں کچھ مشکلات بھی حائل ہوتی ہیں، لیکن پختہ ارادہ اور مسلسل محنت تمام رکاوٹوں کو دور کر دیتی ہے۔ ہمیں سستی اور کاہلی کو چھوڑ کر عملی میدان میں اترنا ہوگا۔\n\n**5. نتیجہ اور سفارشات:**\nآخر میں اس عزم کا اعادہ کرنا ضروری ہے کہ ہم {topic_prompt} کو اپنی زندگی کا شعار بنائیں گے۔ یہی وہ واحد راستہ ہے جو ہمیں ایک روشن، خوشحال اور ترقی یافتہ مستقبل کی طرف لے جاتا ہے۔"
                         elif "تقریر" in content_type or "Speech" in content_type:
-                            generated_text = f"""### عنوان: {topic_prompt}\n\nحضراتِ صدر، محترم اساتذہ کرام اور میرے عزیز ساتھیو!\nالسلام علیکم ورحمۃ اللہ وبرکاتہ!\n\nآج اس پروقار اسٹیج پر کھڑے ہو کر مجھے جس موضوع پر بات کرنے کا موقع ملا ہے، وہ ہے: **{topic_prompt}**۔\n\nسب سے پہلے میں اپنے اساتذہ کا تہِ دل سے شکریہ ادا کرتا ہوں جن کی تربیت کی بدولت آج ہم اس قابل ہوئے ہیں کہ اس اہم اسٹیج سے اپنے خیالات کا اظہار کر سکیں۔ \n\nساتھیو! دنیا کی کوئی بھی قوم اس وقت تک ترقی نہیں کر سکتی جب تک وہ اپنے اصل مقاصد سے جڑی نہ ہو۔ آج کا یہ دن ہمیں یاد دلاتا ہے کہ {topic_prompt} ہماری زندگی کا کتنا اہم حصہ ہے۔ اگر ہم نے آج اس پر غور نہ کیا اور عملی اقدامات نہ اٹھائے، تو آنے والا وقت ہمیں معاف نہیں کرے گا۔\n\nآئیے آج اس مقدس مٹی کو گواہ بنا کر یہ عہد کریں کہ ہم اپنی تمام صلاحیتیں اسکول کی بہتری اور ملک کی ترقی کے لیے وقف کر دیں گے۔ محنت ہمارا شعار ہو گی اور صداقت ہمارا طرۂ امتیاز!\n\nآپ سب کا بہت شکریہ!\nپاکستان زندہ باد! پائندہ باد!"""
+                            generated_text = f"### عنوان: {topic_prompt}\n\nحضراتِ صدر، محترم اساتذہ کرام اور میرے عزیز ساتھیو!\nالسلام علیکم ورحمۃ اللہ وبرکاتہ!\n\nآج اس پروقار اسٹیج پر کھڑے ہو کر مجھے جس موضوع پر بات کرنے کا موقع ملا ہے، وہ ہے: **{topic_prompt}**۔\n\nسب سے پہلے میں اپنے اساتذہ کا تہِ دل سے شکریہ ادا کرتا ہوں جن کی تربیت کی بدولت آج ہم اس قابل ہوئے ہیں کہ اس اہم اسٹیج سے اپنے خیالات کا اظہار کر سکیں۔ \n\nساتھیو! دنیا کی کوئی بھی قوم اس وقت تک ترقی نہیں کر سکتی جب تک وہ اپنے اصل مقاصد سے جڑی نہ ہو۔ آج کا یہ دن ہمیں یاد دلاتا ہے کہ {topic_prompt} ہماری زندگی کا کتنا اہم حصہ ہے۔ اگر ہم نے آج اس پر غور نہ کیا اور عملی اقدامات نہ اٹھائے، تو آنے والا وقت ہمیں معاف نہیں کرے گا۔\n\nآئیے آج اس مقدس مٹی کو گواہ بنا کر یہ عہد کریں کہ ہم اپنی تمام صلاحیتیں اسکول کی بہتری اور ملک کی ترقی کے لیے وقف کر دیں گے۔ محنت ہمارا شعار ہو گی اور صداقت ہمارا طرۂ امتیاز!\n\nآپ سب کا بہت شکریہ!\nپاکستان زندہ باد! پائندہ باد!"
                         elif "نظم" in content_type or "Poem" in content_type:
-                            generated_text = f"""### عنوان: {topic_prompt}\n\nنکلتا ہے سورج سدا نور لے کر،\nنیا اک اجالا ہے ہر طور لے کر۔\nبڑھو آگے بچوں یہی ہے نشانی،\nسنو تم ہمیشہ یہ پیاری کہانی۔\n\n{topic_prompt} کی راہوں پہ چل کر دکھاؤ،\nوطن کا پرچم ہمیشہ اٹھاؤ!\n\nمحنت ہی سے ملتی ہے ہر اک خوشی یہاں،\nبنے گا میرا دیس سارا جہاں!\n\nقلم کی طاقت سے دنیا بدل دو،\nہر اک غم کو دل سے اپنے نکال دو۔\nچلو اب یہ مل کر ارادہ کریں ہم،\nوطن کے لیے جینا مرنا قسم!\n\nبلندی کے ہر بام کو چھو لیں گے ہم،\nنیا اک نیا آسمان ہو گا قدم!\nستارے بھی جس کی گواہی دیں گے،\nوہ سندر زمانہ ہمارا بنے گا!"""
+                            generated_text = f"### عنوان: {topic_prompt}\n\nنکلتا ہے سورج سدا نور لے کر،\nنیا اک اجالا ہے ہر طور لے کر۔\nبڑھو آگے بچوں یہی ہے نشانی،\nسنو تم ہمیشہ یہ پیاری کہانی۔\n\n{topic_prompt} کی راہوں پہ چل کر دکھاؤ،\nوطن کا پرچم ہمیشہ اٹھاؤ!\n\nمحنت ہی سے ملتی ہے ہر اک خوشی یہاں،\nبنے گا میرا دیس سارا جہاں!\n\nقلم کی طاقت سے دنیا بدل دو،\nہر اک غم کو دل سے اپنے نکال دو۔\nچلو اب یہ مل کر ارادہ کریں ہم،\nوطن کے لیے جینا مرنا قسم!\n\nبلندی کے ہر بام کو چھو لیں گے ہم،\nنیا اک نیا آسمان ہو گا قدم!\nستارے بھی جس کی گواہی دیں گے،\nوہ سندر زمانہ ہمارا بنے گا!"
                         else:
-                            generated_text = f"""### تفصیلی نوٹ / سرکولر: {topic_prompt}\n\n**مقام:** دارالخدیجہ سکول سسٹم، سلانوالی\n\n**تعارف:**\nتمام والدین، اساتذہ اور طلباء کی توجہ کے لیے یہ اہم نوٹ جاری کیا جا رہا ہے جس کا بنیادی مقصد **{topic_prompt}** کے حوالے سے بہترین انتظامات کرنا اور شعور اجاگر کرنا ہے۔\n\n**تفصیلی ہدایات:**\n1. اسکول میں اس سلسلے میں خصوصی سیشنز اور مقابلے منعقد کیے جائیں گے۔\n2. تمام طلباء سے گزارش ہے کہ وہ اس میں بھرپور حصہ لیں اور اپنی صلاحیتوں کا لوہا منوائیں۔\n3. اساتذہ کرام اس بات کو یقینی بنائیں گے کہ ہر طالبعلم اس عمل میں شامل ہو اور اس کے مثبت نتائج سامنے آئیں۔\n\n**اختتامی کلمات:**\nآپ کا تعاون ہمارے لیے ہمیشہ باعثِ فخر رہا ہے۔ امید ہے کہ ہم سب مل کر اسکول کا نام مزید روشن کریں گے۔"""
+                            generated_text = f"### تفصیلی نوٹ / سرکولر: {topic_prompt}\n\n**مقام:** دارالخدیجہ سکول سسٹم، سلانوالی\n\n**تعارف:**\nتمام والدین، اساتذہ اور طلباء کی توجہ کے لیے یہ اہم نوٹ جاری کیا جا رہا ہے جس کا بنیادی مقصد **{topic_prompt}** کے حوالے سے بہترین انتظامات کرنا اور شعور اجاگر کرنا ہے۔\n\n**تفصیلی ہدایات:**\n1. اسکول میں اس سلسلے میں خصوصی سیشنز اور مقابلے منعقد کیے جائیں گے۔\n2. تمام طلباء سے گزارش ہے کہ وہ اس میں بھرپور حصہ لیں اور اپنی صلاحیتوں کا لوہا منوائیں۔\n3. اساتذہ کرام اس بات کو یقینی بنائیں گے کہ ہر طالبعلم اس عمل میں شامل ہو اور اس کے مثبت نتائج سامنے آئیں۔\n\n**اختتامی کلمات:**\nآپ کا تعاون ہمارے لیے ہمیشہ باعثِ فخر رہا ہے۔ امید ہے کہ ہم سب مل کر اسکول کا نام مزید روشن کریں گے۔"
                     else:
-                        generated_text = f"""### Title: {topic_prompt}\n\n**1. Introduction:**\nIn the contemporary era, the significance of {topic_prompt} holds profound importance. It serves as a foundational pillar upon which successful academic and personal milestones are achieved. History consistently demonstrates that societies prioritizing this core value thrive exceptionally.\n\n**2. Key Significance and Impact:**\nA deeper analysis reveals that {topic_prompt} fosters discipline, critical thinking, and unwavering dedication. For students, mastering this concept opens doors to limitless opportunities and prepares them to tackle future challenges with confidence and resilience.\n\n**3. Role of Educational Institutions:**\nSchools play an indispensable role in shaping character. Institutions like Dar-ul-Khadija School System continuously strive to instill these noble qualities through structured activities, moral mentoring, and academic excellence.\n\n**4. Conclusion:**\nIn conclusion, embracing {topic_prompt} is not merely an option but a necessity. By committing to these principles today, we pave the way for a brighter, more prosperous, and successful tomorrow for our students and our beloved nation."""
+                        generated_text = f"### Title: {topic_prompt}\n\n**1. Introduction:**\nIn the contemporary era, the significance of {topic_prompt} holds profound importance. It serves as a foundational pillar upon which successful academic and personal milestones are achieved. History consistently demonstrates that societies prioritizing this core value thrive exceptionally.\n\n**2. Key Significance and Impact:**\nA deeper analysis reveals that {topic_prompt} fosters discipline, critical thinking, and unwavering dedication. For students, mastering this concept opens doors to limitless opportunities and prepares them to tackle future challenges with confidence and resilience.\n\n**3. Role of Educational Institutions:**\nSchools play an indispensable role in shaping character. Institutions like Dar-ul-Khadija School System continuously strive to instill these noble qualities through structured activities, moral mentoring, and academic excellence.\n\n**4. Conclusion:**\nIn conclusion, embracing {topic_prompt} is not merely an option but a necessity. By committing to these principles today, we pave the way for a brighter, more prosperous, and successful tomorrow for our students and our beloved nation."
 
                     st.success(tr("تفصیلی مواد کامیابی سے تیار ہو گیا!", "Detailed Content Generated Successfully!"))
                     st.write("---")
