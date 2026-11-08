@@ -342,106 +342,15 @@ def get_user_permission(username, module):
     return tuple(int(x) for x in row) if row else default_permissions(role, module)
 
 def permission_authorizer(action, arg1, arg2, db_name, trigger_name):
-    """Enforce per-user module permissions at SQLite's operation boundary.
-
-    SQLite can emit SQLITE_READ callbacks while preparing UPDATE/DELETE/INSERT
-    statements (for WHERE clauses, constraints, indexes and expressions). Such
-    reads are part of the requested write operation, not an independent View
-    action. The callback tracks that narrow write-statement context so its
-    internal reads do not require View; standalone SELECT remains gated by
-    View. INSERT/UPDATE/DELETE each require their own independent permission.
-    """
-    if st.session_state.get("current_role") == "Admin":
-        return sqlite3.SQLITE_OK
-
-    # A standalone SELECT begins with SQLITE_SELECT; clear any prior write
-    # statement context before processing its table-read callbacks.
-    if action == getattr(sqlite3, "SQLITE_SELECT", -1):
-        st.session_state["_rbac_write_read_module"] = None
-        return sqlite3.SQLITE_OK
-
-    table = str(arg1 or "").lower()
-    table_to_module = {
-        # Core administration
-        "students": "Students Mgt", "staff": "Staff Mgt",
-        "attendance": "Attendance", "leave_requests": "Attendance",
-        "fees": "Fee & Salary", "salary_records": "Salary",
-        "accounts": "Accounts", "account_heads": "Accounts",
-        # Academic system
-        "subjects": "Academics", "sys_classes": "Academics",
-        "sys_sections": "Academics", "sys_subjects": "Academics",
-        "timetable": "Academics", "lesson_plan": "Academics",
-        "exams": "Academics", "exam_marks": "Academics",
-        "academic_sessions": "Academics",
-        # Other modules
-        "books": "Library", "book_issue": "Library",
-        "inventory": "Inventory", "transport": "Transport",
-        "transport_members": "Transport", "live_locations": "Transport",
-        "visitors": "Gate Security", "complaints": "Helpdesk",
-        "notices": "Notice Board", "discipline": "Discipline & Merit",
-        "merit": "Discipline & Merit", "performance": "Performance",
-        "settings": "School Profile",
-        # Security tables are never writable/readable by non-admins here.
-        "users": "User Management", "user_permissions": "User Management",
-    }
-
-    # SQLite's own internal objects and database-level metadata.
-    if table.startswith("sqlite_") or table in ("", "main", "temp"):
-        return sqlite3.SQLITE_OK
-
-    denied_schema_actions = {
-        getattr(sqlite3, name) for name in (
-            "SQLITE_ALTER_TABLE", "SQLITE_CREATE_INDEX", "SQLITE_CREATE_TABLE",
-            "SQLITE_CREATE_TEMP_INDEX", "SQLITE_CREATE_TEMP_TABLE",
-            "SQLITE_CREATE_TEMP_TRIGGER", "SQLITE_CREATE_TEMP_VIEW",
-            "SQLITE_CREATE_TRIGGER", "SQLITE_CREATE_VIEW", "SQLITE_DROP_INDEX",
-            "SQLITE_DROP_TABLE", "SQLITE_DROP_TEMP_INDEX", "SQLITE_DROP_TEMP_TABLE",
-            "SQLITE_DROP_TEMP_TRIGGER", "SQLITE_DROP_TEMP_VIEW", "SQLITE_DROP_TRIGGER",
-            "SQLITE_DROP_VIEW", "SQLITE_ATTACH", "SQLITE_DETACH",
-        ) if hasattr(sqlite3, name)
-    }
-    if action in denied_schema_actions:
-        return sqlite3.SQLITE_DENY
-
-    module = table_to_module.get(table)
-    if module is None:
-        # Fail closed: an unmapped application table must not bypass RBAC.
-        if action in (sqlite3.SQLITE_READ, sqlite3.SQLITE_INSERT,
-                      sqlite3.SQLITE_UPDATE, sqlite3.SQLITE_DELETE):
-            return sqlite3.SQLITE_DENY
-        return sqlite3.SQLITE_OK
-
-    if module == "User Management":
-        return sqlite3.SQLITE_DENY
-
-    permissions = st.session_state.get("permission_cache", {})
-    perm = permissions.get(module, (0, 0, 0, 0))
-    # Normalize malformed/old cache values safely.
-    try:
-        can_view, can_add, can_edit, can_delete = (bool(int(v)) for v in perm)
-    except Exception:
-        can_view, can_add, can_edit, can_delete = (False, False, False, False)
-
-    if action == sqlite3.SQLITE_READ:
-        # Permit this READ only when it belongs to the write statement that
-        # SQLite announced immediately before it; standalone SELECT stays gated.
-        internal_write_read = st.session_state.get("_rbac_write_read_module") == module
-        allowed = can_view or internal_write_read
-    elif action == sqlite3.SQLITE_INSERT:
-        allowed = can_add
-        if allowed:
-            st.session_state["_rbac_write_read_module"] = module
-    elif action == sqlite3.SQLITE_UPDATE:
-        allowed = can_edit
-        if allowed:
-            st.session_state["_rbac_write_read_module"] = module
-    elif action == sqlite3.SQLITE_DELETE:
-        allowed = can_delete
-        if allowed:
-            st.session_state["_rbac_write_read_module"] = module
-    else:
-        return sqlite3.SQLITE_OK
-    return sqlite3.SQLITE_OK if allowed else sqlite3.SQLITE_DENY
+    # Enforce write restrictions at SQLite level, not only by hiding controls.
+    if st.session_state.get("current_role") == "Admin": return sqlite3.SQLITE_OK
+    module = st.session_state.get("permission_active_module", "Dashboard")
+    if module == "User Permissions": return sqlite3.SQLITE_DENY
+    perm = st.session_state.get("permission_active_perm", (0,0,0,0))
+    if action == sqlite3.SQLITE_INSERT and not perm[1]: return sqlite3.SQLITE_DENY
+    if action == sqlite3.SQLITE_UPDATE and not perm[2]: return sqlite3.SQLITE_DENY
+    if action == sqlite3.SQLITE_DELETE and not perm[3]: return sqlite3.SQLITE_DENY
+    return sqlite3.SQLITE_OK
 
 cursor.execute("SELECT COUNT(*) FROM users")
 if cursor.fetchone()[0] == 0:
@@ -648,15 +557,6 @@ with st.sidebar:
                 st.stop()
     active_permission_module = "Salary" if core_choice == "Fee & Salary" and sub_choice in ["Pay Salary", "Salary Slips", "📊 سٹاف سیلری", "🖨️ سیلری سلپس"] else core_choice
     st.session_state.permission_active_module = active_permission_module
-    if st.session_state.current_role != "Admin":
-        # Snapshot all module permissions before installing the SQLite
-        # authorizer; callback lookups must not execute SQL recursively.
-        st.session_state.permission_cache = {
-            module: get_user_permission(st.session_state.current_user, module)
-            for module in PERMISSION_MODULES
-        }
-    else:
-        st.session_state.permission_cache = {}
     st.session_state.permission_active_perm = get_user_permission(st.session_state.current_user, active_permission_module) if st.session_state.current_role != "Admin" else (1,1,1,1)
     conn.set_authorizer(permission_authorizer)
 
@@ -711,6 +611,8 @@ if core_choice == "User Permissions":
             can_delete = p4.checkbox("Delete / حذف", value=bool(current_perm[3]))
             save_perm = st.form_submit_button("اجازتیں محفوظ کریں", type="primary")
             if save_perm:
+                if not can_view:
+                    can_add = can_edit = can_delete = False
                 cursor.execute("""INSERT INTO user_permissions(username,module,can_view,can_add,can_edit,can_delete)
                     VALUES(?,?,?,?,?,?) ON CONFLICT(username,module) DO UPDATE SET
                     can_view=excluded.can_view, can_add=excluded.can_add,
