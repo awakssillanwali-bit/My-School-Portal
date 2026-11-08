@@ -978,7 +978,7 @@ elif core_choice in ["Students Mgt", "طلباء مینجمنٹ"]:
                     ad_en = address if st.session_state.ui_lang == "English" else ""
                     
                     try:
-                        cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (guardian_username.strip(), guardian_password.strip(), "Guardian"))
+                        cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES (?, ?, ?, ?)", (guardian_username.strip(), guardian_password.strip(), "Guardian", auto_reg_no))
                         cursor.execute("""
                             INSERT INTO students 
                             (reg_id, name, fname, dob, blood, class, section, bform, phone, address, prev_school, prev_class, medical, monthly_fee, adm_date, arrears, gender, mname, fcnic, mcnic, photo, g_type, f_prof, name_en, fname_en, address_en, status) 
@@ -1091,9 +1091,9 @@ elif core_choice in ["Students Mgt", "طلباء مینجمنٹ"]:
                             if e_username.strip():
                                 cursor.execute("SELECT id FROM users WHERE username=?", (e_username.strip(),))
                                 if cursor.fetchone():
-                                    cursor.execute("UPDATE users SET password=?, role='Guardian' WHERE username=?", (e_password.strip(), e_username.strip()))
+                                    cursor.execute("UPDATE users SET password=?, role='Guardian', ref_id=? WHERE username=?", (e_password.strip(), str(edit_reg), e_username.strip()))
                                 else:
-                                    cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, 'Guardian')", (e_username.strip(), e_password.strip()))
+                                    cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES (?, ?, 'Guardian', ?)", (e_username.strip(), e_password.strip(), str(edit_reg)))
                             
                             conn.commit()
                             st.success(tr("✅ ریکارڈ اور پورٹل اکاؤنٹ کامیابی سے اپڈیٹ ہو گئے۔", "Record updated successfully!"))
@@ -1366,7 +1366,7 @@ elif core_choice in ["Students Mgt", "طلباء مینجمنٹ"]:
                         
                         p_username = s_phone if s_phone and s_phone != 'nan' else f"parent_{current_reg}"
                         try:
-                            cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (p_username, "1234", "Guardian"))
+                            cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES (?, ?, ?, ?)", (p_username, "1234", "Guardian", str(current_reg)))
                         except: pass
                         
                         current_reg += 1
@@ -6502,8 +6502,32 @@ elif core_choice in ["ڈیٹا بیک اپ", "Data Backup"]:
 elif core_choice in ["پیرنٹ پورٹل", "Parent Portal"]:
     st.markdown(f"<h2 class='no-print'>👨‍👩‍👦 {tr('والدین کا پورٹل (Parent Dashboard)', 'Parent Portal')}</h2>", unsafe_allow_html=True)
     
-    curr_u = st.session_state.current_user
-    stu_df = pd.read_sql(f"SELECT * FROM students WHERE phone='{curr_u}' OR reg_id=REPLACE('{curr_u}', 'parent_', '')", conn)
+    curr_u = str(st.session_state.current_user or "").strip()
+    # First use the explicit account-to-student link. This avoids requiring
+    # the parent's login username to be identical to the phone stored on the student record.
+    cursor.execute("SELECT ref_id FROM users WHERE username=? AND role='Guardian' LIMIT 1", (curr_u,))
+    guardian_link = cursor.fetchone()
+    stu_df = pd.DataFrame()
+    if guardian_link and guardian_link[0] not in (None, "", "N/A"):
+        stu_df = pd.read_sql("SELECT * FROM students WHERE reg_id=? LIMIT 1", conn, params=(str(guardian_link[0]),))
+
+    # Backward compatibility for older accounts created before ref_id linking was added.
+    if stu_df.empty:
+        legacy_reg = curr_u[len("parent_"):] if curr_u.startswith("parent_") else ""
+        if legacy_reg:
+            stu_df = pd.read_sql("SELECT * FROM students WHERE reg_id=? LIMIT 1", conn, params=(legacy_reg,))
+
+    if stu_df.empty:
+        import re
+        normalize_phone = lambda value: re.sub(r"\D", "", str(value or ""))
+        login_digits = normalize_phone(curr_u)
+        if login_digits.startswith("92") and len(login_digits) == 12:
+            login_digits = "0" + login_digits[2:]
+        all_students = pd.read_sql("SELECT * FROM students", conn)
+        if login_digits:
+            matches = all_students[all_students["phone"].apply(normalize_phone) == login_digits]
+            if not matches.empty:
+                stu_df = matches.head(1)
     
     if not stu_df.empty:
         stu = stu_df.iloc[0]
