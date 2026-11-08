@@ -252,11 +252,28 @@ def init_db():
         "address_en": "TEXT",
         "status": "TEXT DEFAULT 'Active'",
     }
-    cursor.execute("PRAGMA table_info(students)")
-    existing_student_columns = {row[1] for row in cursor.fetchall()}
+    # SQLite treats column names as case-insensitive. Normalize names so a
+    # legacy column such as "Gender" is not mistaken for a missing "gender".
+    cursor.execute('PRAGMA table_info("students")')
+    existing_student_columns = {str(row[1]).casefold() for row in cursor.fetchall()}
     for column_name, column_type in student_columns.items():
-        if column_name not in existing_student_columns:
-            cursor.execute(f"ALTER TABLE students ADD COLUMN {column_name} {column_type}")
+        if column_name.casefold() not in existing_student_columns:
+            try:
+                cursor.execute(
+                    f'ALTER TABLE "students" ADD COLUMN "{column_name}" {column_type}'
+                )
+                existing_student_columns.add(column_name.casefold())
+            except sqlite3.OperationalError as migration_error:
+                # Streamlit can rerun the app while another session is applying
+                # the same migration. Ignore only if the column now exists.
+                cursor.execute('PRAGMA table_info("students")')
+                refreshed_columns = {
+                    str(row[1]).casefold() for row in cursor.fetchall()
+                }
+                if column_name.casefold() in refreshed_columns:
+                    existing_student_columns = refreshed_columns
+                else:
+                    raise migration_error
 
     # Give legacy records sensible defaults for the newly introduced fields.
     cursor.execute("UPDATE students SET gender='Boy' WHERE gender IS NULL OR TRIM(gender)=''")
