@@ -236,83 +236,7 @@ def init_db():
         cursor.execute("INSERT INTO settings (key, value) VALUES ('password', '1234')")
         
     cursor.execute('''CREATE TABLE IF NOT EXISTS students (reg_id TEXT PRIMARY KEY, name TEXT, fname TEXT, dob TEXT, blood TEXT, class TEXT, section TEXT, bform TEXT, phone TEXT, address TEXT, prev_school TEXT, prev_class TEXT, medical TEXT, monthly_fee REAL, adm_date TEXT, arrears REAL, advance_fee REAL DEFAULT 0, discount REAL DEFAULT 0)''')
-
-    # Database migration: add newer student fields to existing databases safely.
-    # Existing student records are preserved; only missing columns are added.
-    student_columns = {
-        "gender": "TEXT DEFAULT 'Boy'",
-        "mname": "TEXT",
-        "fcnic": "TEXT",
-        "mcnic": "TEXT",
-        "photo": "BLOB",
-        "g_type": "TEXT DEFAULT 'Father'",
-        "f_prof": "TEXT",
-        "name_en": "TEXT",
-        "fname_en": "TEXT",
-        "address_en": "TEXT",
-        "status": "TEXT DEFAULT 'Active'",
-    }
-    # SQLite treats column names as case-insensitive. Normalize names so a
-    # legacy column such as "Gender" is not mistaken for a missing "gender".
-    cursor.execute('PRAGMA table_info("students")')
-    existing_student_columns = {str(row[1]).casefold() for row in cursor.fetchall()}
-    for column_name, column_type in student_columns.items():
-        if column_name.casefold() not in existing_student_columns:
-            try:
-                cursor.execute(
-                    f'ALTER TABLE "students" ADD COLUMN "{column_name}" {column_type}'
-                )
-                existing_student_columns.add(column_name.casefold())
-            except sqlite3.OperationalError as migration_error:
-                # Streamlit can rerun the app while another session is applying
-                # the same migration. Ignore only if the column now exists.
-                cursor.execute('PRAGMA table_info("students")')
-                refreshed_columns = {
-                    str(row[1]).casefold() for row in cursor.fetchall()
-                }
-                if column_name.casefold() in refreshed_columns:
-                    existing_student_columns = refreshed_columns
-                else:
-                    raise migration_error
-
-    # Give legacy records sensible defaults for the newly introduced fields.
-    cursor.execute("UPDATE students SET gender='Boy' WHERE gender IS NULL OR TRIM(gender)=''")
-    cursor.execute("UPDATE students SET status='Active' WHERE status IS NULL OR TRIM(status)=''")
     cursor.execute('''CREATE TABLE IF NOT EXISTS staff (staff_id TEXT PRIMARY KEY, name TEXT, fname TEXT, cnic TEXT, dob TEXT, designation TEXT, phone TEXT, address TEXT, joining_date TEXT, salary REAL, advance_salary REAL DEFAULT 0)''')
-
-    # Safe migration for staff fields used by the current staff forms and reports.
-    # This upgrades existing databases in place and preserves all staff records.
-    staff_columns = {
-        "education": "TEXT",
-        "fh_cnic": "TEXT",
-        "photo": "BLOB",
-        "g_type": "TEXT DEFAULT 'Father'",
-        "name_en": "TEXT",
-        "fname_en": "TEXT",
-        "address_en": "TEXT",
-        "gender": "TEXT",
-        "assigned_class": "TEXT",
-        "assigned_sec": "TEXT",
-    }
-    cursor.execute('PRAGMA table_info("staff")')
-    existing_staff_columns = {str(row[1]).casefold() for row in cursor.fetchall()}
-    for column_name, column_type in staff_columns.items():
-        if column_name.casefold() not in existing_staff_columns:
-            try:
-                cursor.execute(
-                    f'ALTER TABLE "staff" ADD COLUMN "{column_name}" {column_type}'
-                )
-                existing_staff_columns.add(column_name.casefold())
-            except sqlite3.OperationalError as migration_error:
-                # A concurrent Streamlit rerun may have added the same column.
-                cursor.execute('PRAGMA table_info("staff")')
-                refreshed_staff_columns = {
-                    str(row[1]).casefold() for row in cursor.fetchall()
-                }
-                if column_name.casefold() in refreshed_staff_columns:
-                    existing_staff_columns = refreshed_staff_columns
-                else:
-                    raise migration_error
     cursor.execute('''CREATE TABLE IF NOT EXISTS attendance (date TEXT, type TEXT, person_id TEXT, status TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS fees (date TEXT, reg_id TEXT, month TEXT, tuition REAL, arrears_col REAL, total REAL, status TEXT DEFAULT 'Paid', due_date TEXT, invoice_no TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS salary_records (date TEXT, staff_id TEXT, month TEXT, amount REAL, remarks TEXT)''')
@@ -363,6 +287,71 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS users (
                     ref_id TEXT
                 )''')
 
+# Per-user permissions (safe additive migration; existing users/data are preserved)
+cursor.execute("""CREATE TABLE IF NOT EXISTS user_permissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL,
+    module TEXT NOT NULL,
+    can_view INTEGER NOT NULL DEFAULT 0,
+    can_add INTEGER NOT NULL DEFAULT 0,
+    can_edit INTEGER NOT NULL DEFAULT 0,
+    can_delete INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(username, module)
+)""")
+conn.commit()
+
+PERMISSION_MODULES = [
+    "Dashboard", "Parent Portal", "School Profile", "Students Mgt", "Staff Mgt",
+    "Attendance", "Fee & Salary", "Salary", "Accounts", "Academics", "Library", "Inventory",
+    "Gate Security", "Transport", "Helpdesk", "WhatsApp Alerts", "Performance",
+    "Discipline & Merit", "ID Card Maker", "Notice Board", "Reports", "Data Backup",
+    "AI Generator", "Change Password"
+]
+
+def default_permissions(role, module):
+    # Conservative defaults: sensitive HR, salary, settings and user administration stay restricted.
+    if role == "Admin": return (1, 1, 1, 1)
+    defaults = {
+        "Operator": {
+            "Dashboard": (1,0,0,0), "Students Mgt": (1,0,0,0),
+            "Attendance": (1,1,0,0), "Fee & Salary": (1,1,0,0),
+            "Library": (1,1,0,0), "Inventory": (1,1,0,0),
+            "Gate Security": (1,1,0,0), "Transport": (1,1,0,0),
+            "Helpdesk": (1,1,0,0), "WhatsApp Alerts": (1,0,0,0),
+            "ID Card Maker": (1,0,0,0), "Notice Board": (1,0,0,0),
+            "Discipline & Merit": (1,0,0,0), "Reports": (1,0,0,0),
+            "Staff Mgt": (1,0,0,0)
+        },
+        "Teacher": {
+            "Dashboard": (1,0,0,0), "Attendance": (1,1,0,0),
+            "Academics": (1,1,0,0), "Helpdesk": (1,1,0,0),
+            "Performance": (1,0,0,0), "AI Generator": (1,0,0,0),
+            "WhatsApp Alerts": (1,0,0,0), "Discipline & Merit": (1,1,0,0),
+            "Reports": (1,0,0,0)
+        },
+        "Guardian": {"Parent Portal": (1,0,0,0), "Notice Board": (1,0,0,0), "Change Password": (1,1,0,0)}
+    }
+    return defaults.get(role, {}).get(module, (0,0,0,0))
+
+def get_user_permission(username, module):
+    cursor.execute("SELECT role FROM users WHERE username=?", (username,))
+    role_row = cursor.fetchone()
+    role = role_row[0] if role_row else "Viewer"
+    cursor.execute("SELECT can_view, can_add, can_edit, can_delete FROM user_permissions WHERE username=? AND module=?", (username, module))
+    row = cursor.fetchone()
+    return tuple(int(x) for x in row) if row else default_permissions(role, module)
+
+def permission_authorizer(action, arg1, arg2, db_name, trigger_name):
+    # Enforce write restrictions at SQLite level, not only by hiding controls.
+    if st.session_state.get("current_role") == "Admin": return sqlite3.SQLITE_OK
+    module = st.session_state.get("permission_active_module", "Dashboard")
+    if module == "User Permissions": return sqlite3.SQLITE_DENY
+    perm = st.session_state.get("permission_active_perm", (0,0,0,0))
+    if action == sqlite3.SQLITE_INSERT and not perm[1]: return sqlite3.SQLITE_DENY
+    if action == sqlite3.SQLITE_UPDATE and not perm[2]: return sqlite3.SQLITE_DENY
+    if action == sqlite3.SQLITE_DELETE and not perm[3]: return sqlite3.SQLITE_DENY
+    return sqlite3.SQLITE_OK
+
 cursor.execute("SELECT COUNT(*) FROM users")
 if cursor.fetchone()[0] == 0:
     cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES ('admin', 'admin123', 'Admin', 'N/A')")
@@ -408,9 +397,9 @@ if not st.session_state.logged_in:
     st.stop()
 
 # ================= مینوز اور سیٹنگز =================
-all_menu_ur = ["ڈیش بورڈ", "پیرنٹ پورٹل", "سکول پروفائل", "طلباء مینجمنٹ", "سٹاف مینجمنٹ", "حاضری سسٹم", "فیس، رسیدیں، سیلری", "اکاؤنٹس", "تعلیمی نظام", "لائبریری", "انوینٹری (سٹاک)", "گیٹ سیکیورٹی", "ٹرانسپورٹ (GPS)", "ہیلپ ڈیسک (شکایات)", "واٹس ایپ نوٹیفیکیشن", "پرفارمنس", "ڈسپلن اور میرٹ" , "آئی ڈی کارڈ", "نوٹس بورڈ", "رپورٹس", "ڈیٹا بیک اپ", "اے آئی جنریٹر", "پاسورڈ تبدیل"]
-all_menu_en = ["Dashboard", "Parent Portal", "School Profile", "Students Mgt", "Staff Mgt", "Attendance", "Fee & Salary", "Accounts", "Academics", "Library", "Inventory", "Gate Security", "Transport", "Helpdesk", "WhatsApp Alerts", "Performance", "Discipline & Merit", "ID Card Maker", "Notice Board", "Reports", "Data Backup", "AI Generator", "Change Password"]
-all_menu_icons = ["📊", "👨‍👩‍👦", "🏫", "🎓", "👨‍🏫", "📋", "💵", "💲", "📚", "📖", "📦", "🛡️", "🚌", "🎧", "📱", "📈", "📇", "📢", "📑", "💾", "✦", "🔑", "⭐"]
+all_menu_ur = ["ڈیش بورڈ", "پیرنٹ پورٹل", "سکول پروفائل", "طلباء مینجمنٹ", "سٹاف مینجمنٹ", "حاضری سسٹم", "فیس، رسیدیں، سیلری", "اکاؤنٹس", "تعلیمی نظام", "لائبریری", "انوینٹری (سٹاک)", "گیٹ سیکیورٹی", "ٹرانسپورٹ (GPS)", "ہیلپ ڈیسک (شکایات)", "واٹس ایپ نوٹیفیکیشن", "پرفارمنس", "ڈسپلن اور میرٹ" , "آئی ڈی کارڈ", "نوٹس بورڈ", "رپورٹس", "ڈیٹا بیک اپ", "اے آئی جنریٹر", "پاسورڈ تبدیل", "یوزر پرمیشنز"]
+all_menu_en = ["Dashboard", "Parent Portal", "School Profile", "Students Mgt", "Staff Mgt", "Attendance", "Fee & Salary", "Accounts", "Academics", "Library", "Inventory", "Gate Security", "Transport", "Helpdesk", "WhatsApp Alerts", "Performance", "Discipline & Merit", "ID Card Maker", "Notice Board", "Reports", "Data Backup", "AI Generator", "Change Password", "User Permissions"]
+all_menu_icons = ["📊", "👨‍👩‍👦", "🏫", "🎓", "👨‍🏫", "📋", "💵", "💲", "📚", "📖", "📦", "🛡️", "🚌", "🎧", "📱", "📈", "📇", "📢", "📑", "💾", "✦", "🔑", "⭐", "🛡️"]
 
 user_role = st.session_state.current_role
 
@@ -428,7 +417,7 @@ else:
 
 menu_en, menu_ur, menu_icons = [], [], []
 for en, ur, icon in zip(all_menu_en, all_menu_ur, all_menu_icons):
-    if en in allowed_menus:
+    if user_role == "Admin" or (en in PERMISSION_MODULES and get_user_permission(st.session_state.current_user, en)[0]):
         menu_en.append(en)
         menu_ur.append(ur)
         menu_icons.append(icon)
@@ -464,6 +453,8 @@ for main_en, main_ur, icon in zip(menu_en, menu_ur, menu_icons):
     if st.session_state.active_main_en == main_en:
         if main_en in sub_menus_map:
             for sub_en, sub_ur in zip(sub_menus_map[main_en]["en"], sub_menus_map[main_en]["ur"]):
+                if main_en == "Fee & Salary" and sub_en in ["Pay Salary", "Salary Slips"] and user_role != "Admin" and not get_user_permission(st.session_state.current_user, "Salary")[0]:
+                    continue
                 sub_disp = f" ↳ {sub_ur}" if st.session_state.ui_lang == "اردو" else f" ↳ {sub_en}"
                 display_options.append(sub_disp)
                 option_mapping[sub_disp] = ("sub", main_en, sub_en)
@@ -553,6 +544,22 @@ with st.sidebar:
     core_choice = st.session_state.active_main_en
     sub_choice = st.session_state.active_sub_en
 
+    # Keep users inside modules they are allowed to view. Admin remains unrestricted.
+    if st.session_state.current_role != "Admin" and core_choice != "User Permissions":
+        if not get_user_permission(st.session_state.current_user, core_choice)[0]:
+            visible_modules = [m for m in PERMISSION_MODULES if get_user_permission(st.session_state.current_user, m)[0]]
+            if visible_modules:
+                st.session_state.active_main_en = visible_modules[0]
+                st.session_state.active_sub_en = None
+                st.rerun()
+            else:
+                st.error("آپ کے اکاؤنٹ کو کسی بھی ماڈیول کی View اجازت نہیں۔ ایڈمن سے رابطہ کریں۔")
+                st.stop()
+    active_permission_module = "Salary" if core_choice == "Fee & Salary" and sub_choice in ["Pay Salary", "Salary Slips", "📊 سٹاف سیلری", "🖨️ سیلری سلپس"] else core_choice
+    st.session_state.permission_active_module = active_permission_module
+    st.session_state.permission_active_perm = get_user_permission(st.session_state.current_user, active_permission_module) if st.session_state.current_role != "Admin" else (1,1,1,1)
+    conn.set_authorizer(permission_authorizer)
+
     # ================= سائیڈ بار کے بالکل آخر میں (Bottom Section) =================
     st.markdown("<br><hr style='margin: 10px 0; border: none; border-top: 1px solid #f0f0f0;'>", unsafe_allow_html=True)
     
@@ -582,7 +589,44 @@ with st.sidebar:
 
 
 # ================= 1. ڈیش بورڈ (Dashboard) =================
-if core_choice in ["ڈیش بورڈ", "Dashboard"]:
+if core_choice == "User Permissions":
+    if st.session_state.current_role != "Admin":
+        st.error("صرف سپر ایڈمن یوزر پرمیشنز تبدیل کر سکتا ہے۔")
+        st.stop()
+    st.markdown("## 🛡️ یوزر رولز اور اجازتیں (User Permissions)")
+    users_df = pd.read_sql("SELECT username, role, ref_id FROM users WHERE role != 'Admin' ORDER BY username", conn)
+    if users_df.empty:
+        st.info("ابھی کوئی اسٹاف یوزر موجود نہیں۔")
+    else:
+        selected_user = st.selectbox("اسٹاف یوزر منتخب کریں", users_df["username"].tolist())
+        selected_role = str(users_df.loc[users_df["username"] == selected_user, "role"].iloc[0])
+        selected_module = st.selectbox("ماڈیول منتخب کریں", PERMISSION_MODULES)
+        current_perm = get_user_permission(selected_user, selected_module)
+        st.caption(f"یوزر: {selected_user}  |  رول: {selected_role}  |  ماڈیول: {selected_module}")
+        with st.form("user_permission_editor"):
+            p1, p2, p3, p4 = st.columns(4)
+            can_view = p1.checkbox("View / دیکھنا", value=bool(current_perm[0]))
+            can_add = p2.checkbox("Add / شامل کرنا", value=bool(current_perm[1]))
+            can_edit = p3.checkbox("Edit / ترمیم", value=bool(current_perm[2]))
+            can_delete = p4.checkbox("Delete / حذف", value=bool(current_perm[3]))
+            save_perm = st.form_submit_button("اجازتیں محفوظ کریں", type="primary")
+            if save_perm:
+                if not can_view:
+                    can_add = can_edit = can_delete = False
+                cursor.execute("""INSERT INTO user_permissions(username,module,can_view,can_add,can_edit,can_delete)
+                    VALUES(?,?,?,?,?,?) ON CONFLICT(username,module) DO UPDATE SET
+                    can_view=excluded.can_view, can_add=excluded.can_add,
+                    can_edit=excluded.can_edit, can_delete=excluded.can_delete""",
+                    (selected_user, selected_module, int(can_view), int(can_add), int(can_edit), int(can_delete)))
+                conn.commit()
+                st.success("اس یوزر کی اجازتیں محفوظ ہو گئی ہیں۔")
+                st.rerun()
+        st.markdown("### موجودہ کسٹم اجازتوں کا خلاصہ")
+        perm_df = pd.read_sql("SELECT module AS 'Module', can_view AS 'View', can_add AS 'Add', can_edit AS 'Edit', can_delete AS 'Delete' FROM user_permissions WHERE username=? ORDER BY module", conn, params=(selected_user,))
+        if perm_df.empty: st.info("اس یوزر کے لیے ابھی کوئی کسٹم تبدیلی نہیں؛ رول کی ڈیفالٹ اجازتیں لاگو ہیں۔")
+        else: st.dataframe(perm_df, use_container_width=True, hide_index=True)
+
+elif core_choice in ["ڈیش بورڈ", "Dashboard"]:
     
     # --- 1. ماڈرن ٹاپ بار / سکول پروفائل ---
     top_bar_logo = f'<img src="{logo_src_b64}" style="width: 35px; height: 35px; object-fit: contain; border-radius: 50%; border: 1px solid #ddd;">' if logo_src_b64 else '<div style="font-size:24px; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; background:#e2e8f0; border-radius:50%;">🏫</div>'
@@ -1012,7 +1056,7 @@ elif core_choice in ["Students Mgt", "طلباء مینجمنٹ"]:
                     ad_en = address if st.session_state.ui_lang == "English" else ""
                     
                     try:
-                        cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES (?, ?, ?, ?)", (guardian_username.strip(), guardian_password.strip(), "Guardian", auto_reg_no))
+                        cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (guardian_username.strip(), guardian_password.strip(), "Guardian"))
                         cursor.execute("""
                             INSERT INTO students 
                             (reg_id, name, fname, dob, blood, class, section, bform, phone, address, prev_school, prev_class, medical, monthly_fee, adm_date, arrears, gender, mname, fcnic, mcnic, photo, g_type, f_prof, name_en, fname_en, address_en, status) 
@@ -1125,9 +1169,9 @@ elif core_choice in ["Students Mgt", "طلباء مینجمنٹ"]:
                             if e_username.strip():
                                 cursor.execute("SELECT id FROM users WHERE username=?", (e_username.strip(),))
                                 if cursor.fetchone():
-                                    cursor.execute("UPDATE users SET password=?, role='Guardian', ref_id=? WHERE username=?", (e_password.strip(), str(edit_reg), e_username.strip()))
+                                    cursor.execute("UPDATE users SET password=?, role='Guardian' WHERE username=?", (e_password.strip(), e_username.strip()))
                                 else:
-                                    cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES (?, ?, 'Guardian', ?)", (e_username.strip(), e_password.strip(), str(edit_reg)))
+                                    cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, 'Guardian')", (e_username.strip(), e_password.strip()))
                             
                             conn.commit()
                             st.success(tr("✅ ریکارڈ اور پورٹل اکاؤنٹ کامیابی سے اپڈیٹ ہو گئے۔", "Record updated successfully!"))
@@ -1400,7 +1444,7 @@ elif core_choice in ["Students Mgt", "طلباء مینجمنٹ"]:
                         
                         p_username = s_phone if s_phone and s_phone != 'nan' else f"parent_{current_reg}"
                         try:
-                            cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES (?, ?, ?, ?)", (p_username, "1234", "Guardian", str(current_reg)))
+                            cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (p_username, "1234", "Guardian"))
                         except: pass
                         
                         current_reg += 1
@@ -1532,7 +1576,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
             c_log1, c_log2, c_log3 = st.columns(3)
             staff_username = c_log1.text_input(tr("یوزر نیم (مثلاً: ali_teacher) *", "Username *"))
             staff_password = c_log2.text_input(tr("پاسورڈ *", "Password *"), type="password")
-            staff_role = c_log3.selectbox(tr("سسٹم رول (Role)", "System Role"), ["Teacher", "Operator", "Admin"])
+            staff_role = c_log3.selectbox(tr("سسٹم رول (Role)", "System Role"), ["Teacher", "Operator"])
 
             submit_btn = st.form_submit_button(tr("سٹاف اور اکاؤنٹ محفوظ کریں", "Save Staff & Account"))
             
@@ -1711,7 +1755,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                     c_log1, c_log2, c_log3 = st.columns(3)
                     e_username = c_log1.text_input(tr("یوزر نیم (Username)", "Username"), value=def_user)
                     e_password = c_log2.text_input(tr("پاسورڈ (Password)", "Password"), value=def_pass)
-                    roles_lst = ["Teacher", "Operator", "Admin"]
+                    roles_lst = ["Teacher", "Operator"]
                     e_role = c_log3.selectbox(tr("سسٹم رول (Role)", "System Role"), roles_lst, index=roles_lst.index(def_role) if def_role in roles_lst else 0)
 
                     if st.form_submit_button(tr("تبدیلیاں محفوظ کریں", "Save Changes"), type="primary"):
@@ -6536,32 +6580,8 @@ elif core_choice in ["ڈیٹا بیک اپ", "Data Backup"]:
 elif core_choice in ["پیرنٹ پورٹل", "Parent Portal"]:
     st.markdown(f"<h2 class='no-print'>👨‍👩‍👦 {tr('والدین کا پورٹل (Parent Dashboard)', 'Parent Portal')}</h2>", unsafe_allow_html=True)
     
-    curr_u = str(st.session_state.current_user or "").strip()
-    # First use the explicit account-to-student link. This avoids requiring
-    # the parent's login username to be identical to the phone stored on the student record.
-    cursor.execute("SELECT ref_id FROM users WHERE username=? AND role='Guardian' LIMIT 1", (curr_u,))
-    guardian_link = cursor.fetchone()
-    stu_df = pd.DataFrame()
-    if guardian_link and guardian_link[0] not in (None, "", "N/A"):
-        stu_df = pd.read_sql("SELECT * FROM students WHERE reg_id=? LIMIT 1", conn, params=(str(guardian_link[0]),))
-
-    # Backward compatibility for older accounts created before ref_id linking was added.
-    if stu_df.empty:
-        legacy_reg = curr_u[len("parent_"):] if curr_u.startswith("parent_") else ""
-        if legacy_reg:
-            stu_df = pd.read_sql("SELECT * FROM students WHERE reg_id=? LIMIT 1", conn, params=(legacy_reg,))
-
-    if stu_df.empty:
-        import re
-        normalize_phone = lambda value: re.sub(r"\D", "", str(value or ""))
-        login_digits = normalize_phone(curr_u)
-        if login_digits.startswith("92") and len(login_digits) == 12:
-            login_digits = "0" + login_digits[2:]
-        all_students = pd.read_sql("SELECT * FROM students", conn)
-        if login_digits:
-            matches = all_students[all_students["phone"].apply(normalize_phone) == login_digits]
-            if not matches.empty:
-                stu_df = matches.head(1)
+    curr_u = st.session_state.current_user
+    stu_df = pd.read_sql(f"SELECT * FROM students WHERE phone='{curr_u}' OR reg_id=REPLACE('{curr_u}', 'parent_', '')", conn)
     
     if not stu_df.empty:
         stu = stu_df.iloc[0]
