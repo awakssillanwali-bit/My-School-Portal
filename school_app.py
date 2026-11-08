@@ -11,6 +11,7 @@ import urllib.parse
 import time
 import random
 import webbrowser
+import sqlite3
 st.markdown("""
 <style>
 /* مین پیج کی اوپر اور سائیڈوں والی فالتو سپیس ختم کرنے کے لیے */
