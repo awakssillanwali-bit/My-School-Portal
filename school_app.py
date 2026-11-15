@@ -3656,7 +3656,7 @@ if st.button("سیشن تبدیل کریں"):
         conn.commit()
         st.success(f"سیشن کامیابی کے ساتھ '{new_session}' پر منتقل ہو گیا ہے!")
         st.rerun()
-        else:
+    else:
             st.warning("Please enter a valid session name.")
 
             st.write("---")
