@@ -4224,35 +4224,30 @@ elif sub_choice in ["Lesson Plan", "لیسن پلان"]:
             available_lp_subs = [s for s in all_lp_subs if used_lp_subs.count(s) < 2]
 
             with st.form("lesson_plan_form", clear_on_submit=True):
-                if not available_lp_subs and "No Subject" not in all_lp_subs[0]:
-                    st.info(tr("اس تاریخ / رینج کے لیے اس کلاس کے تمام مضامین کا لیسن پلان (2 بار) بن چکا ہے۔", "Lesson plans for all subjects are already created twice for this date/range."))
-                    available_lp_subs = ["تمام مضامین شامل ہو چکے ہیں"]
-elif not available_lp_subs:
-                    available_lp_subs = all_lp_subs
+            if not available_lp_subs and "No Subject" not in all_lp_subs[0]:
+                st.info(tr("اس تاریخ / رینج کے لیے اس کلاس کے تمام مضامین کا لیسن پلان (2 بار) بن چکا ہے۔", "Lesson plans for all subjects are already created twice for this date/range."))
+                available_lp_subs = ["تمام مضامین شامل ہو چکے ہیں"]
+            elif not available_lp_subs:
+                available_lp_subs = all_lp_subs
 
-                c_lp4, c_lp5 = st.columns(2)
-                lp_sub = c_lp4.selectbox(tr("مضمون", "Subject"), available_lp_subs, key="lp_sub")
-                lp_teacher = c_lp5.selectbox(tr("استاد (Teacher)", "Teacher"), available_teachers, key="lp_teacher")
+            c_lp4, c_lp5 = st.columns(2)
+            lp_sub = c_lp4.selectbox(tr("مضمون", "Subject"), available_lp_subs, key="lp_sub")
+            lp_teacher = c_lp5.selectbox(tr("استاد (Teacher)", "Teacher"), available_teachers, key="lp_teacher")
 
-                lp_topic = st.text_input(tr("آج کا ٹاپک / سبق کی تفصیل", "Topic / Lesson Details"))
-                lp_status = st.radio(tr("سٹیٹس", "Status"), [tr("جاری ہے", "In Progress"), tr("مکمل ہو گیا", "Completed")], index=0, horizontal=True)
+            lp_topic = st.text_input(tr("آج کا ٹاپک / سبق کی تفصیل", "Topic / Lesson Details"))
+            lp_status = st.radio(tr("سٹیٹس", "Status"), [tr("جاری ہے", "In Progress"), tr("مکمل ہو گیا", "Completed")], index=0, horizontal=True)
 
-                if st.form_submit_button(tr("ڈائری محفوظ کریں", "Save Lesson Plan")):
+            if st.form_submit_button(tr("ڈائری محفوظ کریں", "Save Lesson Plan")):
                 if lp_topic and "No Subject" not in lp_sub and "تمام مضامین" not in lp_sub:
                     cursor.execute("INSERT INTO lesson_plan (date, class, section, subject, teacher_id, topic, status, plan_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", 
                                    (final_date_str, lp_class, lp_sec, lp_sub, lp_teacher, lp_topic, lp_status, lp_type))
                     conn.commit()
                     st.success(tr("لیسن پلان محفوظ ہو گیا!", "Lesson plan saved!"))
                     st.rerun()
-            elif "No Subject" in lp_sub:
-                st.error(tr("پہلے اس کلاس کے لیے مضامین شامل کریں!", "Please add subjects for this class first!"))
-            elif "تمام مضامین" in lp_sub:
-                st.warning(tr("مزید مضامین باقی نہیں ہیں۔", "No more subjects left."))
-elif "No Subject" in lp_sub:
-                        st.error(tr("پہلے اس کلاس کے لیے مضامین شامل کریں!", "Please add subjects for this class first!"))
-elif "تمام مضامین" in lp_sub:
-                        st.warning(tr("مزید مضامین باقی نہیں ہیں۔", "No more subjects left."))
-
+                elif "No Subject" in lp_sub:
+                    st.error(tr("پہلے اس کلاس کے لیے مضامین شامل کریں!", "Please add subjects for this class first!"))
+                elif "تمام مضامین" in lp_sub:
+                    st.warning(tr("مزید مضامین باقی نہیں ہیں۔", "No more subjects left."))
         with tab_edit:
             st.markdown(f"### {tr('لیسن پلان میں تبدیلی کریں', 'Edit Lesson Plan')}")
             st.info(tr("تبدیلی کے لیے نیچے دی گئی لسٹ سے لیسن پلان کی ID (پہلا کالم) دیکھ کر یہاں لکھیں۔", "Enter the Lesson Plan ID (from the first column of the list below) to edit it."))
