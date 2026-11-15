@@ -490,7 +490,7 @@ school_website = get_setting("school_website") or ""
 school_facebook = get_setting("school_facebook") or ""
 school_reg = get_setting("school_reg") or ""
 
-cursor.execute("SELECT blob_value FROM settings WHERE key='school_logo'")
+cursor.execute("SELECT BYTEA_value FROM settings WHERE key='school_logo'")
 logo_row = cursor.fetchone()
 saved_logo_bytes = logo_row[0] if logo_row and logo_row[0] else None
 
@@ -918,7 +918,7 @@ elif core_choice in ["School Profile", "سکول پروفائل"]:
                 cursor.execute("INSERT INTO settings (key, value) VALUES (%s, %s)", (k, v))
             if p_logo:
                 cursor.execute("DELETE FROM settings WHERE key='school_logo'")
-                cursor.execute("INSERT INTO settings (key, blob_value) VALUES ('school_logo', %s)", (sqlite3.Binary(p_logo.read()),))
+                cursor.execute("INSERT INTO settings (key, BYTEA_value) VALUES ('school_logo', %s)", (sqlite3.Binary(p_logo.read()),))
             conn.commit()
             st.success("Details Saved Successfully!")
             st.rerun()
