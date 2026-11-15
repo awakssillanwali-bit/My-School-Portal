@@ -224,7 +224,7 @@ def get_current_db_filename():
     return 'school_system.db'
 
 DB_FILE = get_current_db_filename()
-@st.cache_resource
+@st.cache_resource(ttl=300)
 def init_db():
     db_url = st.secrets["DATABASE_URL"]
     conn = psycopg2.connect(db_url)
