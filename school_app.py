@@ -236,7 +236,7 @@ def init_db():
     cursor.execute("SELECT value FROM settings WHERE key='password'")
     if not cursor.fetchone():
         cursor.execute("INSERT INTO settings (key, value) VALUES ('password', '1234') ON CONFLICT (key) DO NOTHING")
-        
+    cursor.execute("DROP TABLE IF EXISTS students")    
     cursor.execute('''CREATE TABLE IF NOT EXISTS students (reg_id TEXT PRIMARY KEY, name TEXT, fname TEXT, dob TEXT, blood TEXT, class TEXT, section TEXT, bform TEXT, phone TEXT, address TEXT, prev_school TEXT, prev_class TEXT, medical TEXT, monthly_fee REAL, adm_date TEXT, arrears REAL, advance_fee REAL DEFAULT 0, discount REAL DEFAULT 0)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS staff (staff_id TEXT PRIMARY KEY, name TEXT, fname TEXT, cnic TEXT, dob TEXT, designation TEXT, phone TEXT, address TEXT, joining_date TEXT, salary REAL, advance_salary REAL DEFAULT 0)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS attendance (date TEXT, type TEXT, person_id TEXT, status TEXT)''')
@@ -1069,7 +1069,7 @@ elif core_choice in ["Students Mgt", "طلباء مینجمنٹ"]:
                         
                         conn.commit()
                         st.success(tr("✅ طالب علم کا داخلہ اور والدین کا اکاؤنٹ کامیابی سے محفوظ ہو گیا!", "Student record and parent account saved successfully!"))
-                    except sqlite3.IntegrityError:
+                    except psycopg2.IntegrityError:
                         st.error(tr("⚠️ یہ یوزر نیم پہلے سے موجود ہے۔ برائے مہربانی والدین کے لیے کوئی منفرد نام (جیسے فون نمبر) استعمال کریں۔", "Username already exists. Please use a unique one like a phone number."))
                     except Exception as e: 
                         st.error(f"Error saving student: {e}")
