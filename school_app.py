@@ -230,13 +230,13 @@ def init_db():
     conn = psycopg2.connect(db_url)
     conn.autocommit = True
     cursor = conn.cursor()
-    cursor.execute("DROP TABLE IF EXISTS settings")
+    # Preserve existing settings; do not drop this table on app startup.
     cursor.execute('''CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, blob_value BYTEA)''')
     
     cursor.execute("SELECT value FROM settings WHERE key='password'")
     if not cursor.fetchone():
         cursor.execute("INSERT INTO settings (key, value) VALUES ('password', '1234') ON CONFLICT (key) DO NOTHING")
-    cursor.execute("DROP TABLE IF EXISTS students")    
+    # Preserve existing student records; do not drop this table on app startup.
     cursor.execute('''CREATE TABLE IF NOT EXISTS students (reg_id TEXT PRIMARY KEY, name TEXT, fname TEXT, dob TEXT, blood TEXT, class TEXT, section TEXT, bform TEXT, phone TEXT, address TEXT, prev_school TEXT, prev_class TEXT, medical TEXT, monthly_fee TEXT, adm_date TEXT, arrears TEXT, gender TEXT, mname TEXT, fcnic TEXT, mcnic TEXT, photo BYTEA, g_type TEXT, f_prof TEXT, name_en TEXT, fname_en TEXT, address_en TEXT, status TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS staff (staff_id TEXT PRIMARY KEY, name TEXT, fname TEXT, cnic TEXT, dob TEXT, designation TEXT, phone TEXT, address TEXT, joining_date TEXT, salary REAL, advance_salary REAL DEFAULT 0)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS attendance (date TEXT, type TEXT, person_id TEXT, status TEXT)''')
@@ -4223,31 +4223,32 @@ elif sub_choice in ["Lesson Plan", "لیسن پلان"]:
 
             available_lp_subs = [s for s in all_lp_subs if used_lp_subs.count(s) < 2]
 
-            with st.form("lesson_plan_form", clear_on_submit=True):
-                    if not available_lp_subs and "No Subject" not in all_lp_subs[0]:
+            if not available_lp_subs and "No Subject" not in all_lp_subs[0]:
                 st.info(tr("اس تاریخ / رینج کے لیے اس کلاس کے تمام مضامین کا لیسن پلان (2 بار) بن چکا ہے۔", "Lesson plans for all subjects are already created twice for this date/range."))
                 available_lp_subs = ["تمام مضامین شامل ہو چکے ہیں"]
             elif not available_lp_subs:
                 available_lp_subs = all_lp_subs
 
-            c_lp4, c_lp5 = st.columns(2)
-            lp_sub = c_lp4.selectbox(tr("مضمون", "Subject"), available_lp_subs, key="lp_sub")
-            lp_teacher = c_lp5.selectbox(tr("استاد (Teacher)", "Teacher"), available_teachers, key="lp_teacher")
+            with st.form("lesson_plan_form", clear_on_submit=True):
 
-            lp_topic = st.text_input(tr("آج کا ٹاپک / سبق کی تفصیل", "Topic / Lesson Details"))
-            lp_status = st.radio(tr("سٹیٹس", "Status"), [tr("جاری ہے", "In Progress"), tr("مکمل ہو گیا", "Completed")], index=0, horizontal=True)
+                c_lp4, c_lp5 = st.columns(2)
+                lp_sub = c_lp4.selectbox(tr("مضمون", "Subject"), available_lp_subs, key="lp_sub")
+                lp_teacher = c_lp5.selectbox(tr("استاد (Teacher)", "Teacher"), available_teachers, key="lp_teacher")
 
-            if st.form_submit_button(tr("ڈائری محفوظ کریں", "Save Lesson Plan")):
-                if lp_topic and "No Subject" not in lp_sub and "تمام مضامین" not in lp_sub:
-                    cursor.execute("INSERT INTO lesson_plan (date, class, section, subject, teacher_id, topic, status, plan_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", 
-                                   (final_date_str, lp_class, lp_sec, lp_sub, lp_teacher, lp_topic, lp_status, lp_type))
-                    conn.commit()
-                    st.success(tr("لیسن پلان محفوظ ہو گیا!", "Lesson plan saved!"))
-                    st.rerun()
-                elif "No Subject" in lp_sub:
-                    st.error(tr("پہلے اس کلاس کے لیے مضامین شامل کریں!", "Please add subjects for this class first!"))
-                elif "تمام مضامین" in lp_sub:
-                    st.warning(tr("مزید مضامین باقی نہیں ہیں۔", "No more subjects left."))
+                lp_topic = st.text_input(tr("آج کا ٹاپک / سبق کی تفصیل", "Topic / Lesson Details"))
+                lp_status = st.radio(tr("سٹیٹس", "Status"), [tr("جاری ہے", "In Progress"), tr("مکمل ہو گیا", "Completed")], index=0, horizontal=True)
+
+                if st.form_submit_button(tr("ڈائری محفوظ کریں", "Save Lesson Plan")):
+                    if lp_topic and "No Subject" not in lp_sub and "تمام مضامین" not in lp_sub:
+                        cursor.execute("INSERT INTO lesson_plan (date, class, section, subject, teacher_id, topic, status, plan_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", 
+                                       (final_date_str, lp_class, lp_sec, lp_sub, lp_teacher, lp_topic, lp_status, lp_type))
+                        conn.commit()
+                        st.success(tr("لیسن پلان محفوظ ہو گیا!", "Lesson plan saved!"))
+                        st.rerun()
+                    elif "No Subject" in lp_sub:
+                        st.error(tr("پہلے اس کلاس کے لیے مضامین شامل کریں!", "Please add subjects for this class first!"))
+                    elif "تمام مضامین" in lp_sub:
+                        st.warning(tr("مزید مضامین باقی نہیں ہیں۔", "No more subjects left."))
         with tab_edit:
             st.markdown(f"### {tr('لیسن پلان میں تبدیلی کریں', 'Edit Lesson Plan')}")
             st.info(tr("تبدیلی کے لیے نیچے دی گئی لسٹ سے لیسن پلان کی ID (پہلا کالم) دیکھ کر یہاں لکھیں۔", "Enter the Lesson Plan ID (from the first column of the list below) to edit it."))
@@ -4274,7 +4275,7 @@ elif sub_choice in ["Lesson Plan", "لیسن پلان"]:
 
                         curr_ptype = lp_data.get('plan_type', 'Daily' if st.session_state.ui_lang=="English" else "روزانہ")
                         if curr_ptype in type_opts_ur and st.session_state.ui_lang == "English": curr_ptype = type_opts_en[type_opts_ur.index(curr_ptype)]
-elif curr_ptype in type_opts_en and st.session_state.ui_lang == "اردو": curr_ptype = type_opts_ur[type_opts_en.index(curr_ptype)]
+                        elif curr_ptype in type_opts_en and st.session_state.ui_lang == "اردو": curr_ptype = type_opts_ur[type_opts_en.index(curr_ptype)]
                         pt_idx = type_opts.index(curr_ptype) if curr_ptype in type_opts else 0
                         e_lp_type = c_e_lp_type.selectbox(tr("پلان کی قسم", "Plan Type"), type_opts, index=pt_idx, key="e_lp_type")
 
@@ -4397,7 +4398,7 @@ elif curr_ptype in type_opts_en and st.session_state.ui_lang == "اردو": curr
                     else:
                         st.warning(tr("براہ کرم درست ID درج کریں۔", "Please enter a valid ID."))
 
-elif "All" in del_mode or "تمام" in del_mode:
+            elif "All" in del_mode or "تمام" in del_mode:
                 st.error(tr("⚠️ انتباہ: کیا آپ واقعی تمام لیسن پلانز کا ریکارڈ ڈیلیٹ کرنا چاہتے ہیں؟ یہ عمل واپس نہیں ہو سکتا۔", 
                             "⚠️ WARNING: Are you sure you want to delete ALL lesson plans%s This action cannot be undone."))
                 confirm_del = st.checkbox(tr("ہاں، میں تمام ریکارڈ ڈیلیٹ کرنا چاہتا ہوں", "Yes, I want to delete all records"))
@@ -4422,115 +4423,115 @@ elif "All" in del_mode or "تمام" in del_mode:
         st.dataframe(lp_df, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-  elif sub_choice in ["Exams & Marks", "امتحانات / مارکس"]:
-        st.markdown("<div class='no-print'>", unsafe_allow_html=True)
+elif sub_choice in ["Exams & Marks", "امتحانات / مارکس"]:
+    st.markdown("<div class='no-print'>", unsafe_allow_html=True)
 
-        if 'ex_sel_class' not in st.session_state: st.session_state.ex_sel_class = classes_list[0]
-        if 'ex_sel_sec' not in st.session_state: st.session_state.ex_sel_sec = "A"
-        if 'ex_sel_exam' not in st.session_state: st.session_state.ex_sel_exam = None
+    if 'ex_sel_class' not in st.session_state: st.session_state.ex_sel_class = classes_list[0]
+    if 'ex_sel_sec' not in st.session_state: st.session_state.ex_sel_sec = "A"
+    if 'ex_sel_exam' not in st.session_state: st.session_state.ex_sel_exam = None
 
-        with st.expander(tr("1. نیا امتحان بنائیں (Create Exam)", "1. Create Exam")):
-            c_ex1, c_ex2 = st.columns(2)
-            exam_name = c_ex1.text_input(tr("امتحان کا نام (مثال: First Term 2026)", "Exam Name (e.g., First Term 2026)"))
-            exam_date = c_ex2.date_input(tr("شروع ہونے کی تاریخ", "Start Date"))
-            if st.button(tr("امتحان محفوظ کریں", "Save Exam")):
-                if exam_name:
-                    try: 
-                        cursor.execute("INSERT INTO exams (exam_name, start_date) VALUES (%s, %s)", (exam_name, exam_date.strftime("%Y-%m-%d")))
-                        conn.commit()
-                        st.success("Exam created!")
-                        st.rerun()
-                    except: 
-                        st.error("Exam already exists.")
-
-        with st.expander(tr("2. طلباء کے نمبرز کی انٹری (Enter Marks)", "2. Enter Marks"), expanded=True):
-            available_exams = pd.read_sql("SELECT exam_name FROM exams", conn)['exam_name'].tolist()
-            if available_exams:
-                if not st.session_state.ex_sel_exam or st.session_state.ex_sel_exam not in available_exams:
-                    st.session_state.ex_sel_exam = available_exams[0]
-
-                c_em1, c_em2, c_em3 = st.columns(3)
-                em_exam = c_em1.selectbox(tr("امتحان", "Exam"), available_exams, index=available_exams.index(st.session_state.ex_sel_exam), key="em_exam")
-
-                db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
-                if not db_cls: db_cls = classes_list
-                em_class = c_em2.selectbox(tr("کلاس", "Class"), db_cls, index=db_cls.index(st.session_state.ex_sel_class) if st.session_state.ex_sel_class in db_cls else 0, key="em_cls")
-
-                db_sec = pd.read_sql(f"SELECT section_name FROM sys_sections WHERE class_name='{em_class}'", conn)['section_name'].tolist()
-                if not db_sec: db_sec = ["A"]
-                em_sec = c_em3.selectbox(tr("سیکشن", "Section"), db_sec, index=db_sec.index(st.session_state.ex_sel_sec) if st.session_state.ex_sel_sec in db_sec else 0, key="em_sec")
-
-                if em_exam != st.session_state.ex_sel_exam or em_class != st.session_state.ex_sel_class or em_sec != st.session_state.ex_sel_sec:
-                    st.session_state.ex_sel_exam = em_exam
-                    st.session_state.ex_sel_class = em_class
-                    st.session_state.ex_sel_sec = em_sec
+    with st.expander(tr("1. نیا امتحان بنائیں (Create Exam)", "1. Create Exam")):
+        c_ex1, c_ex2 = st.columns(2)
+        exam_name = c_ex1.text_input(tr("امتحان کا نام (مثال: First Term 2026)", "Exam Name (e.g., First Term 2026)"))
+        exam_date = c_ex2.date_input(tr("شروع ہونے کی تاریخ", "Start Date"))
+        if st.button(tr("امتحان محفوظ کریں", "Save Exam")):
+            if exam_name:
+                try: 
+                    cursor.execute("INSERT INTO exams (exam_name, start_date) VALUES (%s, %s)", (exam_name, exam_date.strftime("%Y-%m-%d")))
+                    conn.commit()
+                    st.success("Exam created!")
                     st.rerun()
+                except: 
+                    st.error("Exam already exists.")
 
-                existing_marks_df = pd.read_sql(f"SELECT DISTINCT subject FROM exam_marks WHERE exam_name='{em_exam}' AND reg_id IN (SELECT reg_id FROM students WHERE class='{em_class}' AND section='{em_sec}')", conn)
-                used_ex_subs = existing_marks_df['subject'].tolist() if not existing_marks_df.empty else []
+    with st.expander(tr("2. طلباء کے نمبرز کی انٹری (Enter Marks)", "2. Enter Marks"), expanded=True):
+        available_exams = pd.read_sql("SELECT exam_name FROM exams", conn)['exam_name'].tolist()
+        if available_exams:
+            if not st.session_state.ex_sel_exam or st.session_state.ex_sel_exam not in available_exams:
+                st.session_state.ex_sel_exam = available_exams[0]
 
-                dyn_subs_ex_df = pd.read_sql(f"SELECT subject_name FROM sys_subjects WHERE class_name='{em_class}' AND section_name='{em_sec}'", conn)
-                all_ex_subs = dyn_subs_ex_df['subject_name'].tolist() if not dyn_subs_ex_df.empty else ["کوئی مضمون نہیں / No Subject"]
+            c_em1, c_em2, c_em3 = st.columns(3)
+            em_exam = c_em1.selectbox(tr("امتحان", "Exam"), available_exams, index=available_exams.index(st.session_state.ex_sel_exam), key="em_exam")
 
-                available_ex_subs = [s for s in all_ex_subs if s not in used_ex_subs]
+            db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
+            if not db_cls: db_cls = classes_list
+            em_class = c_em2.selectbox(tr("کلاس", "Class"), db_cls, index=db_cls.index(st.session_state.ex_sel_class) if st.session_state.ex_sel_class in db_cls else 0, key="em_cls")
 
-                with st.form("marks_entry_form"):
-                    if not available_ex_subs and "No Subject" not in all_ex_subs[0]:
-                        st.info(tr("اس کلاس کے تمام مضامین کا رزلٹ اس امتحان کے لیے بن چکا ہے۔", "Marks for all subjects have been entered for this class in this exam."))
-                        available_ex_subs = ["تمام مضامین شامل ہو چکے ہیں"]
-elif not available_ex_subs:
-                        available_ex_subs = all_ex_subs
+            db_sec = pd.read_sql(f"SELECT section_name FROM sys_sections WHERE class_name='{em_class}'", conn)['section_name'].tolist()
+            if not db_sec: db_sec = ["A"]
+            em_sec = c_em3.selectbox(tr("سیکشن", "Section"), db_sec, index=db_sec.index(st.session_state.ex_sel_sec) if st.session_state.ex_sel_sec in db_sec else 0, key="em_sec")
 
-                    c_em4, c_em5 = st.columns(2)
-                    em_sub = c_em4.selectbox("Subject", available_ex_subs, key="em_sub")
-                    tot_marks = c_em5.number_input(tr("اس مضمون کے کل نمبر (Total Marks)", "Total Marks for this subject"), min_value=1.0, value=100.0)
+            if em_exam != st.session_state.ex_sel_exam or em_class != st.session_state.ex_sel_class or em_sec != st.session_state.ex_sel_sec:
+                st.session_state.ex_sel_exam = em_exam
+                st.session_state.ex_sel_class = em_class
+                st.session_state.ex_sel_sec = em_sec
+                st.rerun()
 
-                    exam_students = pd.read_sql(f"SELECT reg_id, name, name_en FROM students WHERE class='{em_class}' AND section='{em_sec}' AND status='Active'", conn)
+            existing_marks_df = pd.read_sql(f"SELECT DISTINCT subject FROM exam_marks WHERE exam_name='{em_exam}' AND reg_id IN (SELECT reg_id FROM students WHERE class='{em_class}' AND section='{em_sec}')", conn)
+            used_ex_subs = existing_marks_df['subject'].tolist() if not existing_marks_df.empty else []
 
-                    if not exam_students.empty and "No Subject" not in em_sub and "تمام مضامین" not in em_sub:
-                        marks_dict = {}
-                        for _, es in exam_students.iterrows():
-                            def_val = 0.0
-                            d_name = get_disp_val(es['name'], es.get('name_en'))
-                            c_mark1, c_mark2 = st.columns([2, 1])
-                            c_mark1.markdown(f"<div style='padding-top:10px;'>**{d_name}** (Reg: {es['reg_id']})</div>", unsafe_allow_html=True)
-                            marks_dict[es['reg_id']] = c_mark2.text_input(tr("حاصل کردہ نمبر", "Obtained Marks"), value="", key=f"mark_{es['reg_id']}", label_visibility="collapsed")
+            dyn_subs_ex_df = pd.read_sql(f"SELECT subject_name FROM sys_subjects WHERE class_name='{em_class}' AND section_name='{em_sec}'", conn)
+            all_ex_subs = dyn_subs_ex_df['subject_name'].tolist() if not dyn_subs_ex_df.empty else ["کوئی مضمون نہیں / No Subject"]
 
-                        if st.form_submit_button(tr("تمام نمبرز محفوظ کریں", "Save All Marks")):
-                            for r_id, val_in in marks_dict.items():
-                                try: obt_m = float(val_in)
-                                except: obt_m = 0.0
-                                if obt_m > tot_marks: obt_m = tot_marks
-                                if obt_m < 0: obt_m = 0.0
-                                cursor.execute("INSERT INTO exam_marks (exam_name, reg_id, subject, total_marks, obtained_marks) VALUES (%s, %s, %s, %s, %s)", (em_exam, r_id, em_sub, tot_marks, obt_m))
-                            conn.commit()
-                            st.success(tr("پوری کلاس کے نمبرز کامیابی سے محفوظ ہو گئے!", "Marks saved successfully for the whole class!"))
-                            st.rerun()
-elif "No Subject" in em_sub:
-                        st.warning(tr("اس کلاس کے لیے کوئی مضمون شامل نہیں کیا گیا۔", "No subject added for this class."))
-                        st.form_submit_button("Ok", disabled=True)
-elif "تمام مضامین" in em_sub:
-                         st.form_submit_button("Ok", disabled=True)
-            else:
-                 st.info(tr("پہلے کوئی امتحان بنائیں۔", "Please create an exam first."))
+            available_ex_subs = [s for s in all_ex_subs if s not in used_ex_subs]
+
+            with st.form("marks_entry_form"):
+                if not available_ex_subs and "No Subject" not in all_ex_subs[0]:
+                    st.info(tr("اس کلاس کے تمام مضامین کا رزلٹ اس امتحان کے لیے بن چکا ہے۔", "Marks for all subjects have been entered for this class in this exam."))
+                    available_ex_subs = ["تمام مضامین شامل ہو چکے ہیں"]
+                elif not available_ex_subs:
+                    available_ex_subs = all_ex_subs
+
+                c_em4, c_em5 = st.columns(2)
+                em_sub = c_em4.selectbox("Subject", available_ex_subs, key="em_sub")
+                tot_marks = c_em5.number_input(tr("اس مضمون کے کل نمبر (Total Marks)", "Total Marks for this subject"), min_value=1.0, value=100.0)
+
+                exam_students = pd.read_sql(f"SELECT reg_id, name, name_en FROM students WHERE class='{em_class}' AND section='{em_sec}' AND status='Active'", conn)
+
+                if not exam_students.empty and "No Subject" not in em_sub and "تمام مضامین" not in em_sub:
+                    marks_dict = {}
+                    for _, es in exam_students.iterrows():
+                        def_val = 0.0
+                        d_name = get_disp_val(es['name'], es.get('name_en'))
+                        c_mark1, c_mark2 = st.columns([2, 1])
+                        c_mark1.markdown(f"<div style='padding-top:10px;'>**{d_name}** (Reg: {es['reg_id']})</div>", unsafe_allow_html=True)
+                        marks_dict[es['reg_id']] = c_mark2.text_input(tr("حاصل کردہ نمبر", "Obtained Marks"), value="", key=f"mark_{es['reg_id']}", label_visibility="collapsed")
+
+                    if st.form_submit_button(tr("تمام نمبرز محفوظ کریں", "Save All Marks")):
+                        for r_id, val_in in marks_dict.items():
+                            try: obt_m = float(val_in)
+                            except: obt_m = 0.0
+                            if obt_m > tot_marks: obt_m = tot_marks
+                            if obt_m < 0: obt_m = 0.0
+                            cursor.execute("INSERT INTO exam_marks (exam_name, reg_id, subject, total_marks, obtained_marks) VALUES (%s, %s, %s, %s, %s)", (em_exam, r_id, em_sub, tot_marks, obt_m))
+                        conn.commit()
+                        st.success(tr("پوری کلاس کے نمبرز کامیابی سے محفوظ ہو گئے!", "Marks saved successfully for the whole class!"))
+                        st.rerun()
+                elif "No Subject" in em_sub:
+                    st.warning(tr("اس کلاس کے لیے کوئی مضمون شامل نہیں کیا گیا۔", "No subject added for this class."))
+                    st.form_submit_button("Ok", disabled=True)
+                elif "تمام مضامین" in em_sub:
+                    st.form_submit_button("Ok", disabled=True)
+        else:
+            st.info(tr("پہلے کوئی امتحان بنائیں۔", "Please create an exam first."))
 
 elif sub_choice in ["Result Card", "رزلٹ کارڈ"]:
-        st.markdown("<div class='no-print'>", unsafe_allow_html=True)
-        available_exams_res = pd.read_sql("SELECT exam_name FROM exams", conn)['exam_name'].tolist()
+    st.markdown("<div class='no-print'>", unsafe_allow_html=True)
+    available_exams_res = pd.read_sql("SELECT exam_name FROM exams", conn)['exam_name'].tolist()
 
-        if available_exams_res:
-            st.markdown(f"### 📄 {tr('رزلٹ کارڈ جنریٹر', 'Result Card Generator')}")
-            rc_exam = st.selectbox(tr("امتحان منتخب کریں", "Select Exam for Result"), available_exams_res)
-            st.write("---")
+    if available_exams_res:
+        st.markdown(f"### 📄 {tr('رزلٹ کارڈ جنریٹر', 'Result Card Generator')}")
+        rc_exam = st.selectbox(tr("امتحان منتخب کریں", "Select Exam for Result"), available_exams_res)
+        st.write("---")
 
-            gen_mode = st.radio(tr("رزلٹ کارڈ کس کا بنانا ہے؟", "Generate result for:"), 
-                                [tr("سنگل طالب علم", "Single Student"), 
-                                 tr("پوری کلاس", "Whole Class"), 
-                                 tr("پورا سکول", "Whole School")], horizontal=True)
+        gen_mode = st.radio(tr("رزلٹ کارڈ کس کا بنانا ہے؟", "Generate result for:"), 
+                            [tr("سنگل طالب علم", "Single Student"), 
+                             tr("پوری کلاس", "Whole Class"), 
+                             tr("پورا سکول", "Whole School")], horizontal=True)
 
-            students_to_print = pd.DataFrame()
+        students_to_print = pd.DataFrame()
 
-            if "Single" in gen_mode or "سنگل" in gen_mode:
+        if "Single" in gen_mode or "سنگل" in gen_mode:
             rc_reg = st.text_input(tr("طالب علم کا رول نمبر لکھیں", "Enter Student Reg No"))
             if rc_reg:
                 students_to_print = pd.read_sql(f"SELECT * FROM students WHERE reg_id='{rc_reg}'", conn)
@@ -4547,125 +4548,125 @@ elif sub_choice in ["Result Card", "رزلٹ کارڈ"]:
             students_to_print = pd.read_sql("SELECT * FROM students WHERE status='Active'", conn)
             st.info(tr("یہ پورے سکول کے تمام طلباء کے رزلٹ کارڈ ایک ساتھ بنائے گا۔ اس میں تھوڑا وقت لگ سکتا ہے۔", "This will generate result cards for ALL students in the school. It may take some time."))
 
-            btn_result = st.button(tr("رزلٹ کارڈز جنریٹ کریں", "Generate Result Cards"), type="primary", use_container_width=True)
+        btn_result = st.button(tr("رزلٹ کارڈز جنریٹ کریں", "Generate Result Cards"), type="primary", use_container_width=True)
 
-            if btn_result:
-                if not students_to_print.empty:
-                    t = {"align": "left", "dir": "ltr"} if st.session_state.ui_lang == "English" else {"align": "right", "dir": "rtl"}
-                    combined_html = f"<div style='width: 100%;' dir='{t['dir']}'>"
+        if btn_result:
+            if not students_to_print.empty:
+                t = {"align": "left", "dir": "ltr"} if st.session_state.ui_lang == "English" else {"align": "right", "dir": "rtl"}
+                combined_html = f"<div style='width: 100%;' dir='{t['dir']}'>"
 
-                    cards_generated = 0
-                    progress_bar = st.progress(0)
-                    total_stu = len(students_to_print)
+                cards_generated = 0
+                progress_bar = st.progress(0)
+                total_stu = len(students_to_print)
 
-                    for idx, s_row in students_to_print.iterrows():
-                        rc_reg_curr = s_row['reg_id']
-                        marks_df = pd.read_sql(f"SELECT subject as 'Subject', total_marks as 'Total', obtained_marks as 'Obtained' FROM exam_marks WHERE exam_name='{rc_exam}' AND reg_id='{rc_reg_curr}'", conn)
+                for idx, s_row in students_to_print.iterrows():
+                    rc_reg_curr = s_row['reg_id']
+                    marks_df = pd.read_sql(f"SELECT subject as 'Subject', total_marks as 'Total', obtained_marks as 'Obtained' FROM exam_marks WHERE exam_name='{rc_exam}' AND reg_id='{rc_reg_curr}'", conn)
 
-                        if not marks_df.empty:
-                            grand_total = marks_df['Total'].sum()
-                            grand_obtained = marks_df['Obtained'].sum()
-                            percentage = (grand_obtained / grand_total) * 100 if grand_total > 0 else 0
+                    if not marks_df.empty:
+                        grand_total = marks_df['Total'].sum()
+                        grand_obtained = marks_df['Obtained'].sum()
+                        percentage = (grand_obtained / grand_total) * 100 if grand_total > 0 else 0
 
-                            if percentage >= 80: grade = "A+"
-elif percentage >= 70: grade = "A"
-elif percentage >= 60: grade = "B"
-elif percentage >= 50: grade = "C"
-elif percentage >= 40: grade = "D"
-                            else: grade = "Fail"
+                        if percentage >= 80: grade = "A+"
+                        elif percentage >= 70: grade = "A"
+                        elif percentage >= 60: grade = "B"
+                        elif percentage >= 50: grade = "C"
+                        elif percentage >= 40: grade = "D"
+                        else: grade = "Fail"
 
-                            perc_str = f"{percentage:.2f}%"
-                            marks_rows = ""
-                            for _, m_row in marks_df.iterrows():
-                                marks_rows += f"<tr><td style='border:1px solid black; padding:6px; font-size:12px;'>{m_row['Subject']}</td><td style='border:1px solid black; padding:6px; text-align:center; font-size:12px;'>{m_row['Total']}</td><td style='border:1px solid black; padding:6px; text-align:center; font-size:12px;'>{m_row['Obtained']}</td></tr>"
+                        perc_str = f"{percentage:.2f}%"
+                        marks_rows = ""
+                        for _, m_row in marks_df.iterrows():
+                            marks_rows += f"<tr><td style='border:1px solid black; padding:6px; font-size:12px;'>{m_row['Subject']}</td><td style='border:1px solid black; padding:6px; text-align:center; font-size:12px;'>{m_row['Total']}</td><td style='border:1px solid black; padding:6px; text-align:center; font-size:12px;'>{m_row['Obtained']}</td></tr>"
 
-                            photo_data = s_row.get('photo', None)
-                            student_photo_html = '<div style="width:110px; height:130px; border:2px solid #000; text-align:center; line-height:130px; font-size:12px; background:#f9f9f9; color:#999; margin:0 auto;">Photo</div>'
-                            if photo_data:
-                                try:
-                                    b64_photo = base64.b64encode(photo_data).decode()
-                                    student_photo_html = f'<img src="data:image/jpeg;base64,{b64_photo}" style="width:110px; height:130px; object-fit:cover; border:2px solid #000; display:block !important; visibility:visible !important; margin:0 auto;">'
-                                except: pass
+                        photo_data = s_row.get('photo', None)
+                        student_photo_html = '<div style="width:110px; height:130px; border:2px solid #000; text-align:center; line-height:130px; font-size:12px; background:#f9f9f9; color:#999; margin:0 auto;">Photo</div>'
+                        if photo_data:
+                            try:
+                                b64_photo = base64.b64encode(photo_data).decode()
+                                student_photo_html = f'<img src="data:image/jpeg;base64,{b64_photo}" style="width:110px; height:130px; object-fit:cover; border:2px solid #000; display:block !important; visibility:visible !important; margin:0 auto;">'
+                            except: pass
 
-                            logo_td_content = f'<div style="text-align:{t["align"]}; padding-right: 15px;">{logo_base64_html}</div>'
-                            photo_td_content = f'<div style="text-align:{"right" if t["align"]=="left" else "left"}; padding-left: 15px;">{student_photo_html}</div>'
+                        logo_td_content = f'<div style="text-align:{t["align"]}; padding-right: 15px;">{logo_base64_html}</div>'
+                        photo_td_content = f'<div style="text-align:{"right" if t["align"]=="left" else "left"}; padding-left: 15px;">{student_photo_html}</div>'
 
-                            raw_g = str(s_row.get('g_type', 'Father'))
-                            gender_val = str(s_row.get('gender', 'Boy'))
-                            try: rel_str = get_relation_card_label(gender_val, raw_g)
-                            except: rel_str = "S/O" if gender_val == "Boy" else "D/O"
+                        raw_g = str(s_row.get('g_type', 'Father'))
+                        gender_val = str(s_row.get('gender', 'Boy'))
+                        try: rel_str = get_relation_card_label(gender_val, raw_g)
+                        except: rel_str = "S/O" if gender_val == "Boy" else "D/O"
 
-                            try: d_name = get_disp_val(s_row['name'], s_row.get('name_en'))
-                            except: d_name = s_row['name']
-                            try: d_fname = get_disp_val(s_row['fname'], s_row.get('fname_en'))
-                            except: d_fname = s_row['fname']
+                        try: d_name = get_disp_val(s_row['name'], s_row.get('name_en'))
+                        except: d_name = s_row['name']
+                        try: d_fname = get_disp_val(s_row['fname'], s_row.get('fname_en'))
+                        except: d_fname = s_row['fname']
 
-                            res_html = f"""
-                            <div style="border: 4px solid black; padding: 15px; width: 100%; max-width: 700px; margin: 0 auto; font-family: 'Arial', sans-serif; background-color: white; color: black; box-sizing: border-box; page-break-inside: avoid;">
-                                <table style="width: 100%; border: none; margin-bottom: 10px;">
-                                    <tr>
-                                        <td style="width: 25%; text-align: center; vertical-align: middle;">{photo_td_content if st.session_state.ui_lang == "اردو" else logo_td_content}</td>
-                                        <td style="width: 50%; text-align: center; vertical-align: middle;">
-                                            <h1 style="margin: 0; font-size: 26px; color: #1a4f8b; font-weight: bold;">{school_name.upper() if 'school_name' in locals() else 'SCHOOL NAME'}</h1>
-                                            <p style="margin: 3px 0; font-size: 13px; font-weight: bold;">{school_address if 'school_address' in locals() else ''}</p>
-                                            <h2 style="margin: 10px 0 5px 0; font-size: 18px; color: #1a4f8b; text-decoration: underline;">{tr('نتیجہ (Progress Report)', 'Progress Report')}</h2>
-                                            <h3 style="margin: 5px 0 10px 0; font-size: 15px; color: #333;">{rc_exam}</h3>
-                                        </td>
-                                        <td style="width: 25%; text-align: center; vertical-align: middle;">{logo_td_content if st.session_state.ui_lang == "اردو" else photo_td_content}</td>
-                                    </tr>
-                                </table>
-                                <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px; font-weight: bold;">
-                                    <tr>
-                                        <td style="border: 2px solid black; padding: 6px; width: 20%; background-color: #f2f2f2; text-align:{t['align']};">{tr('داخلہ نمبر:', 'Reg No:')}</td>
-                                        <td style="border: 2px solid black; padding: 6px; width: 30%; text-align:{t['align']};">{rc_reg_curr}</td>
-                                        <td style="border: 2px solid black; padding: 6px; width: 20%; background-color: #f2f2f2; text-align:{t['align']};">{tr('کلاس/سیکشن:', 'Class/Sec:')}</td>
-                                        <td style="border: 2px solid black; padding: 6px; width: 30%; text-align:{t['align']};">{s_row['class']} ( {s_row['section']} )</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="border: 2px solid black; padding: 6px; background-color: #f2f2f2; text-align:{t['align']};">{tr('نام:', 'Name:')}</td>
-                                        <td colspan="3" style="border: 2px solid black; padding: 6px; text-align:{t['align']};">{d_name} ({rel_str} {d_fname})</td>
-                                    </tr>
-                                </table>
-                                <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px;">
-                                    <tr style="background-color: #e6e6e6;">
-                                        <th style="border: 2px solid black; padding: 8px; width: 50%; text-align: {t['align']}; font-weight:bold;">{tr('مضمون', 'Subject')}</th>
-                                        <th style="border: 2px solid black; padding: 8px; width: 25%; text-align: center; font-weight:bold;">{tr('کل نمبر', 'Total Marks')}</th>
-                                        <th style="border: 2px solid black; padding: 8px; width: 25%; text-align: center; font-weight:bold;">{tr('حاصل کردہ نمبر', 'Obtained Marks')}</th>
-                                    </tr>
-                                    {marks_rows}
-                                </table>
-                                <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 13px; font-weight: bold; text-align: center;">
-                                    <tr>
-                                        <td style="border: 3px solid black; padding: 8px; width: 25%;">{tr('کل نمبر (Total Marks)', 'Total Marks')}: {grand_total}</td>
-                                        <td style="border: 3px solid black; padding: 8px; width: 25%;">{tr('حاصل کردہ (Obtained)', 'Obtained')}: {grand_obtained}</td>
-                                        <td style="border: 3px solid black; padding: 8px; width: 25%;">{tr('فیصد (Percentage)', 'Percentage')}: {perc_str}</td>
-                                        <td style="border: 3px solid black; padding: 8px; width: 25%; color: #1a4f8b;">{tr('گریڈ (Grade)', 'Grade')}: {grade}</td>
-                                    </tr>
-                                </table>
-                                <table style="width: 100%; border: none; margin-top: 40px; font-size: 13px;">
-                                    <tr>
-                                        <td style="text-align: {t['align']}; width: 33%;">___________________<br><br>{tr('پرنسپل کے دستخط', 'Principal Sign')}</td>
-                                        <td style="text-align: center; width: 34%;">___________________<br><br>{tr('دستخط والدین', 'Parent Sign')}</td>
-                                        <td style="text-align: {'left' if st.session_state.ui_lang == 'اردو' else 'right'}; width: 33%;">___________________<br><br>{tr('دستخط کلاس ٹیچر', 'Class Teacher Sign')}</td>
-                                    </tr>
-                                </table>
-                            </div>
-                            <div style="page-break-after: always; height: 1px;"></div>
-                            """
-                            combined_html += res_html
-                            cards_generated += 1
+                        res_html = f"""
+                        <div style="border: 4px solid black; padding: 15px; width: 100%; max-width: 700px; margin: 0 auto; font-family: 'Arial', sans-serif; background-color: white; color: black; box-sizing: border-box; page-break-inside: avoid;">
+                            <table style="width: 100%; border: none; margin-bottom: 10px;">
+                                <tr>
+                                    <td style="width: 25%; text-align: center; vertical-align: middle;">{photo_td_content if st.session_state.ui_lang == "اردو" else logo_td_content}</td>
+                                    <td style="width: 50%; text-align: center; vertical-align: middle;">
+                                        <h1 style="margin: 0; font-size: 26px; color: #1a4f8b; font-weight: bold;">{school_name.upper() if 'school_name' in locals() else 'SCHOOL NAME'}</h1>
+                                        <p style="margin: 3px 0; font-size: 13px; font-weight: bold;">{school_address if 'school_address' in locals() else ''}</p>
+                                        <h2 style="margin: 10px 0 5px 0; font-size: 18px; color: #1a4f8b; text-decoration: underline;">{tr('نتیجہ (Progress Report)', 'Progress Report')}</h2>
+                                        <h3 style="margin: 5px 0 10px 0; font-size: 15px; color: #333;">{rc_exam}</h3>
+                                    </td>
+                                    <td style="width: 25%; text-align: center; vertical-align: middle;">{logo_td_content if st.session_state.ui_lang == "اردو" else photo_td_content}</td>
+                                </tr>
+                            </table>
+                            <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px; font-weight: bold;">
+                                <tr>
+                                    <td style="border: 2px solid black; padding: 6px; width: 20%; background-color: #f2f2f2; text-align:{t['align']};">{tr('داخلہ نمبر:', 'Reg No:')}</td>
+                                    <td style="border: 2px solid black; padding: 6px; width: 30%; text-align:{t['align']};">{rc_reg_curr}</td>
+                                    <td style="border: 2px solid black; padding: 6px; width: 20%; background-color: #f2f2f2; text-align:{t['align']};">{tr('کلاس/سیکشن:', 'Class/Sec:')}</td>
+                                    <td style="border: 2px solid black; padding: 6px; width: 30%; text-align:{t['align']};">{s_row['class']} ( {s_row['section']} )</td>
+                                </tr>
+                                <tr>
+                                    <td style="border: 2px solid black; padding: 6px; background-color: #f2f2f2; text-align:{t['align']};">{tr('نام:', 'Name:')}</td>
+                                    <td colspan="3" style="border: 2px solid black; padding: 6px; text-align:{t['align']};">{d_name} ({rel_str} {d_fname})</td>
+                                </tr>
+                            </table>
+                            <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 13px;">
+                                <tr style="background-color: #e6e6e6;">
+                                    <th style="border: 2px solid black; padding: 8px; width: 50%; text-align: {t['align']}; font-weight:bold;">{tr('مضمون', 'Subject')}</th>
+                                    <th style="border: 2px solid black; padding: 8px; width: 25%; text-align: center; font-weight:bold;">{tr('کل نمبر', 'Total Marks')}</th>
+                                    <th style="border: 2px solid black; padding: 8px; width: 25%; text-align: center; font-weight:bold;">{tr('حاصل کردہ نمبر', 'Obtained Marks')}</th>
+                                </tr>
+                                {marks_rows}
+                            </table>
+                            <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 13px; font-weight: bold; text-align: center;">
+                                <tr>
+                                    <td style="border: 3px solid black; padding: 8px; width: 25%;">{tr('کل نمبر (Total Marks)', 'Total Marks')}: {grand_total}</td>
+                                    <td style="border: 3px solid black; padding: 8px; width: 25%;">{tr('حاصل کردہ (Obtained)', 'Obtained')}: {grand_obtained}</td>
+                                    <td style="border: 3px solid black; padding: 8px; width: 25%;">{tr('فیصد (Percentage)', 'Percentage')}: {perc_str}</td>
+                                    <td style="border: 3px solid black; padding: 8px; width: 25%; color: #1a4f8b;">{tr('گریڈ (Grade)', 'Grade')}: {grade}</td>
+                                </tr>
+                            </table>
+                            <table style="width: 100%; border: none; margin-top: 40px; font-size: 13px;">
+                                <tr>
+                                    <td style="text-align: {t['align']}; width: 33%;">___________________<br><br>{tr('پرنسپل کے دستخط', 'Principal Sign')}</td>
+                                    <td style="text-align: center; width: 34%;">___________________<br><br>{tr('دستخط والدین', 'Parent Sign')}</td>
+                                    <td style="text-align: {'left' if st.session_state.ui_lang == 'اردو' else 'right'}; width: 33%;">___________________<br><br>{tr('دستخط کلاس ٹیچر', 'Class Teacher Sign')}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div style="page-break-after: always; height: 1px;"></div>
+                        """
+                        combined_html += res_html
+                        cards_generated += 1
 
-                        progress_bar.progress(min((idx + 1) / total_stu, 1.0))
+                    progress_bar.progress(min((idx + 1) / total_stu, 1.0))
 
-                    combined_html += "</div>"
+                combined_html += "</div>"
 
-                    if cards_generated > 0:
-                        try: print_button_js(combined_html, tr(f"{cards_generated} رزلٹ کارڈز پرنٹ کریں", f"Print {cards_generated} Result Cards"), landscape=False)
-                        except: st.components.v1.html(combined_html, height=600, scrolling=True)
-                    else:
-                        st.warning(tr("منتخب شدہ طلباء کے لیے اس امتحان کا کوئی رزلٹ نہیں ملا۔", "No results found for the selected students in this exam."))
+                if cards_generated > 0:
+                    try: print_button_js(combined_html, tr(f"{cards_generated} رزلٹ کارڈز پرنٹ کریں", f"Print {cards_generated} Result Cards"), landscape=False)
+                    except: st.components.v1.html(combined_html, height=600, scrolling=True)
                 else:
-                    st.error(tr("کوئی طالب علم نہیں ملا۔", "No student found."))
+                    st.warning(tr("منتخب شدہ طلباء کے لیے اس امتحان کا کوئی رزلٹ نہیں ملا۔", "No results found for the selected students in this exam."))
+            else:
+                st.error(tr("کوئی طالب علم نہیں ملا۔", "No student found."))
         else:
             st.info(tr("پہلے کوئی امتحان بنائیں۔", "Please create an exam first."))
 
