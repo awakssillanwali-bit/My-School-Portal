@@ -918,7 +918,7 @@ elif core_choice in ["School Profile", "سکول پروفائل"]:
                 cursor.execute("INSERT INTO settings (key, value) VALUES (%s, %s)", (k, v))
             if p_logo:
                 cursor.execute("DELETE FROM settings WHERE key='school_logo'")
-                cursor.execute("INSERT INTO settings (key, BYTEA_value) VALUES ('school_logo', %s)", (sqlite3.Binary(p_logo.read()),))
+                cursor.execute("INSERT INTO settings (key, blob_value) VALUES ('school_logo', %s)", (psycopg2.Binary(p_logo.read()),))
             conn.commit()
             st.success("Details Saved Successfully!")
             st.rerun()
