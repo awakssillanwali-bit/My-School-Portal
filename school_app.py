@@ -3961,77 +3961,78 @@ elif sub_choice in ["Classes", "کلاسز"]:
                 st.info(tr("👆 پہلے کلاس اور سیکشن منتخب کریں۔", "👆 Please select class and section first."))
 
 elif sub_choice in ["Time Table", "ٹائم ٹیبل"]:
-        st.markdown("<div class='no-print'>", unsafe_allow_html=True)
+    st.markdown("<div class='no-print'>", unsafe_allow_html=True)
 
-        if 'tt_sel_class' not in st.session_state: st.session_state.tt_sel_class = classes_list[0]
-        if 'tt_sel_sec' not in st.session_state: st.session_state.tt_sel_sec = "A"
+    if 'tt_sel_class' not in st.session_state: st.session_state.tt_sel_class = classes_list[0]
+    if 'tt_sel_sec' not in st.session_state: st.session_state.tt_sel_sec = "A"
 
-        with st.expander(tr("➕ نیا پیریڈ شامل کریں", "➕ Add New Period"), expanded=True):
-            c_a1, c_a2 = st.columns(2)
+    with st.expander(tr("➕ نیا پیریڈ شامل کریں", "➕ Add New Period"), expanded=True):
+        c_a1, c_a2 = st.columns(2)
 
-            db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
-            if not db_cls: db_cls = classes_list
-            tt_add_class = c_a1.selectbox(
-                tr("کلاس", "Class"), 
-                db_cls, 
-                index=db_cls.index(st.session_state.tt_sel_class) if st.session_state.tt_sel_class in db_cls else 0,
-                key="tt_add_cls"
-            )
-            db_sec = pd.read_sql(f"SELECT section_name FROM sys_sections WHERE class_name='{tt_add_class}'", conn)['section_name'].tolist()
-            if not db_sec: db_sec = ["A"]
-            tt_add_sec = c_a2.selectbox(
-                tr("سیکشن", "Section"), 
-                db_sec, 
-                index=db_sec.index(st.session_state.tt_sel_sec) if st.session_state.tt_sel_sec in db_sec else 0,
-                key="tt_add_sec"
-            )
+        db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
+        if not db_cls: db_cls = classes_list
+        tt_add_class = c_a1.selectbox(
+            tr("کلاس", "Class"), 
+            db_cls, 
+            index=db_cls.index(st.session_state.tt_sel_class) if st.session_state.tt_sel_class in db_cls else 0,
+            key="tt_add_cls"
+        )
+        db_sec = pd.read_sql(f"SELECT section_name FROM sys_sections WHERE class_name='{tt_add_class}'", conn)['section_name'].tolist()
+        if not db_sec: db_sec = ["A"]
+        tt_add_sec = c_a2.selectbox(
+            tr("سیکشن", "Section"), 
+            db_sec, 
+            index=db_sec.index(st.session_state.tt_sel_sec) if st.session_state.tt_sel_sec in db_sec else 0,
+            key="tt_add_sec"
+        )
 
-            if tt_add_class != st.session_state.tt_sel_class or tt_add_sec != st.session_state.tt_sel_sec:
-                st.session_state.tt_sel_class = tt_add_class
-                st.session_state.tt_sel_sec = tt_add_sec
-                st.rerun()
+        if tt_add_class != st.session_state.tt_sel_class or tt_add_sec != st.session_state.tt_sel_sec:
+            st.session_state.tt_sel_class = tt_add_class
+            st.session_state.tt_sel_sec = tt_add_sec
+            st.rerun()
 
-            days = [tr("روزانہ", "Daily"), tr("سوموار", "Monday"), tr("منگل", "Tuesday"), tr("بدھ", "Wednesday"), tr("جمعرات", "Thursday"), tr("جمعہ", "Friday"), tr("ہفتہ", "Saturday")]
-            periods = [tr("پہلا پیریڈ", "1st Period"), tr("دوسرا پیریڈ", "2nd Period"), tr("تیسرا پیریڈ", "3rd Period"), tr("چوتھا پیریڈ", "4th Period"), tr("پانچواں پیریڈ", "5th Period"), tr("چھٹا پیریڈ", "6th Period"), tr("ساتواں پیریڈ", "7th Period"), tr("آٹھواں پیریڈ", "8th Period")]
+        days = [tr("روزانہ", "Daily"), tr("سوموار", "Monday"), tr("منگل", "Tuesday"), tr("بدھ", "Wednesday"), tr("جمعرات", "Thursday"), tr("جمعہ", "Friday"), tr("ہفتہ", "Saturday")]
+        periods = [tr("پہلا پیریڈ", "1st Period"), tr("دوسرا پیریڈ", "2nd Period"), tr("تیسرا پیریڈ", "3rd Period"), tr("چوتھا پیریڈ", "4th Period"), tr("پانچواں پیریڈ", "5th Period"), tr("چھٹا پیریڈ", "6th Period"), tr("ساتواں پیریڈ", "7th Period"), tr("آٹھواں پیریڈ", "8th Period")]
 
-            tt_day = st.selectbox(tr("دن", "Day"), days)
+        tt_day = st.selectbox(tr("دن", "Day"), days)
 
-            existing_tt = pd.read_sql(f"SELECT period, subject FROM timetable WHERE class='{tt_add_class}' AND section='{tt_add_sec}' AND day='{tt_day}'", conn)
-            used_periods = existing_tt['period'].tolist() if not existing_tt.empty else []
-            used_subs = existing_tt['subject'].tolist() if not existing_tt.empty else []
+        existing_tt = pd.read_sql(f"SELECT period, subject FROM timetable WHERE class='{tt_add_class}' AND section='{tt_add_sec}' AND day='{tt_day}'", conn)
+        used_periods = existing_tt['period'].tolist() if not existing_tt.empty else []
+        used_subs = existing_tt['subject'].tolist() if not existing_tt.empty else []
 
-            available_periods = [p for p in periods if p not in used_periods]
+        available_periods = [p for p in periods if p not in used_periods]
 
-            all_subs_df = pd.read_sql(f"SELECT subject_name FROM sys_subjects WHERE class_name='{tt_add_class}' AND section_name='{tt_add_sec}'", conn)
-            all_subs = all_subs_df['subject_name'].tolist() if not all_subs_df.empty else ["کوئی مضمون نہیں / No Subject"]
+        all_subs_df = pd.read_sql(f"SELECT subject_name FROM sys_subjects WHERE class_name='{tt_add_class}' AND section_name='{tt_add_sec}'", conn)
+        all_subs = all_subs_df['subject_name'].tolist() if not all_subs_df.empty else ["کوئی مضمون نہیں / No Subject"]
 
-            available_subs = [s for s in all_subs if s not in used_subs]
-            if not available_subs and "No Subject" not in all_subs[0]: 
-                 st.info(tr("اس دن کے تمام مضامین شیڈول ہو چکے ہیں۔", "All subjects for this day are already scheduled."))
-                 available_subs = ["تمام مضامین شامل ہو چکے ہیں"]
-elif not available_subs:
-                 available_subs = all_subs
+        available_subs = [s for s in all_subs if s not in used_subs]
+        
+        if not available_subs and "No Subject" not in all_subs[0]: 
+            st.info(tr("اس دن کے تمام مضامین شیڈول ہو چکے ہیں۔", "All subjects for this day are already scheduled."))
+            available_subs = ["تمام مضامین شامل ہو چکے ہیں"]
+        elif not available_subs:
+            available_subs = all_subs
 
         available_teachers = pd.read_sql("SELECT name FROM staff", conn)['name'].tolist()
-            if not available_teachers: available_teachers = ["No Teacher Found"]
+        if not available_teachers: 
+            available_teachers = ["No Teacher Found"]
 
-            if not available_periods:
-                st.warning(tr("اس دن کے تمام پیریڈز مکمل ہو چکے ہیں۔", "All periods for this day are assigned."))
-            elif "تمام مضامین" not in available_subs[0] and "No Subject" not in available_subs[0]:
-                c_p1, c_p2, c_p3 = st.columns(3)
-                tt_period = c_p1.selectbox(tr("پیریڈ", "Period"), available_periods)
-                tt_sub = c_p2.selectbox(tr("مضمون", "Subject"), available_subs)
-                tt_teacher = c_p3.selectbox(tr("استاد (Teacher)", "Teacher"), available_teachers)
+        if not available_periods:
+            st.warning(tr("اس دن کے تمام پیریڈز مکمل ہو چکے ہیں۔", "All periods for this day are assigned."))
+        elif "تمام مضامین" not in available_subs[0] and "No Subject" not in available_subs[0]:
+            c_p1, c_p2, c_p3 = st.columns(3)
+            tt_period = c_p1.selectbox(tr("پیریڈ", "Period"), available_periods)
+            tt_sub = c_p2.selectbox(tr("مضمون", "Subject"), available_subs)
+            tt_teacher = c_p3.selectbox(tr("استاد (Teacher)", "Teacher"), available_teachers)
 
-                if st.button(tr("ٹائم ٹیبل محفوظ کریں", "Save Timetable")):
-                    cursor.execute("INSERT INTO timetable (class, section, day, period, subject, teacher_id) VALUES (%s, %s, %s, %s, %s, %s)", (tt_add_class, tt_add_sec, tt_day, tt_period, tt_sub, tt_teacher))
-                    conn.commit()
-                    st.success(tr("محفوظ ہو گیا!", "Saved!"))
-                    st.rerun()
-            else:
-                if "No Subject" in available_subs[0]:
-                    st.error(tr("پہلے اس کلاس کے لیے مضامین شامل کریں!", "Please add subjects for this class first!"))
-
+            if st.button(tr("ٹائم ٹیبل محفوظ کریں", "Save Timetable")):
+                cursor.execute("INSERT INTO timetable (class, section, day, period, subject, teacher_id) VALUES (%s, %s, %s, %s, %s, %s)", (tt_add_class, tt_add_sec, tt_day, tt_period, tt_sub, tt_teacher))
+                conn.commit()
+                st.success(tr("محفوظ ہو گیا!", "Saved!"))
+                st.rerun()
+        else:
+            if "No Subject" in available_subs[0]:
+                st.error(tr("پہلے اس کلاس کے لیے مضامین شامل کریں!", "Please add subjects for this class first!"))
         st.write("---")
         st.subheader(tr("ٹائم ٹیبل دیکھیں اور پرنٹ کریں", "View & Print Timetable"))
         v_mode = st.radio(tr("طریقہ انتخاب:", "View By:"), [tr("کلاس کے لحاظ سے", "Class-wise"), tr("استاد کے لحاظ سے", "Teacher-wise")], horizontal=True)
