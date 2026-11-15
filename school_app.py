@@ -4224,7 +4224,7 @@ elif sub_choice in ["Lesson Plan", "لیسن پلان"]:
             available_lp_subs = [s for s in all_lp_subs if used_lp_subs.count(s) < 2]
 
             with st.form("lesson_plan_form", clear_on_submit=True):
-                if not available_lp_subs and "No Subject" not in all_lp_subs[0]:
+                    if not available_lp_subs and "No Subject" not in all_lp_subs[0]:
                 st.info(tr("اس تاریخ / رینج کے لیے اس کلاس کے تمام مضامین کا لیسن پلان (2 بار) بن چکا ہے۔", "Lesson plans for all subjects are already created twice for this date/range."))
                 available_lp_subs = ["تمام مضامین شامل ہو چکے ہیں"]
             elif not available_lp_subs:
