@@ -231,7 +231,7 @@ def init_db():
     conn.autocommit = True
     cursor = conn.cursor()
     cursor.execute("DROP TABLE IF EXISTS settings")
-    cursor.execute('''CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, BYTEA_value BYTEA)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, blob_value BYTEA)''')
     
     cursor.execute("SELECT value FROM settings WHERE key='password'")
     if not cursor.fetchone():
