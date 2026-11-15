@@ -3704,7 +3704,7 @@ if st.button("سیشن تبدیل کریں"):
                         st.rerun()
 
             with col_list:
-            st.markdown("### 🟢 Registered Academic Sessions")
+                        st.markdown("### 🟢 Registered Academic Sessions")
             sessions_df = pd.read_sql("SELECT * FROM academic_sessions", conn)
 
             if not sessions_df.empty:
