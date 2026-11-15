@@ -3746,7 +3746,7 @@ if st.button("سیشن تبدیل کریں"):
             else:
                 st.info("No sessions found.")
 
-    elif sub_choice in ["Classes", "کلاسز"]:
+elif sub_choice in ["Classes", "کلاسز"]:
         st.markdown("<style>.stButton>button { border-radius: 8px; font-weight: bold; }</style>", unsafe_allow_html=True)
         st.markdown(f"<h2 class='no-print'>🏫 {tr('کلاسز، سیکشنز اور مضامین کا نظام', 'Classes, Sections & Subjects Management')}</h2>", unsafe_allow_html=True)
         st.write("---")
