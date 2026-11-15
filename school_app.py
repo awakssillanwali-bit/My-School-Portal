@@ -490,7 +490,7 @@ school_website = get_setting("school_website") or ""
 school_facebook = get_setting("school_facebook") or ""
 school_reg = get_setting("school_reg") or ""
 
-cursor.execute("SELECT BYTEA_value FROM settings WHERE key='school_logo'")
+cursor.execute("SELECT blob_value FROM settings WHERE key='school_logo'")
 logo_row = cursor.fetchone()
 saved_logo_bytes = logo_row[0] if logo_row and logo_row[0] else None
 
