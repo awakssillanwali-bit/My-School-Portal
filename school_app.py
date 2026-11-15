@@ -3654,10 +3654,10 @@ if st.button("سیشن تبدیل کریں"):
             cursor.execute("INSERT INTO academic_sessions (session_name, status) VALUES (%s, 'ACTIVE')", (new_session,))
         
         conn.commit()
-        st.success(f"سیشن کامیابی کے ساتھ '{new_session}' پر منتقل ہو گیا ہے!")
-        st.rerun()
+            st.success(f"سیشن کامیابی کے ساتھ '{new_session}' پر منتقل ہو گیا ہے!")
+            st.rerun()
         else:
-        st.warning("Please enter a valid session name.")
+            st.warning("Please enter a valid session name.")
 
             st.write("---")
             st.markdown("### ✏️/🗑️ Edit or Delete Session")
