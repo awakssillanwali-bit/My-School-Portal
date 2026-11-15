@@ -245,21 +245,21 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS accounts (date TEXT, type TEXT, description TEXT, amount REAL, head_name TEXT, voucher_no TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS account_heads (head_name TEXT PRIMARY KEY, head_type TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS subjects (subject_name TEXT PRIMARY KEY)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS timetable (id INTEGER PRIMARY KEY AUTOINCREMENT, class TEXT, section TEXT, day TEXT, period TEXT, subject TEXT, teacher_id TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS lesson_plan (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, class TEXT, section TEXT, subject TEXT, teacher_id TEXT, topic TEXT, status TEXT, plan_type TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS timetable (id SERIAL PRIMARY KEY, class TEXT, section TEXT, day TEXT, period TEXT, subject TEXT, teacher_id TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS lesson_plan (id SERIAL PRIMARY KEY, date TEXT, class TEXT, section TEXT, subject TEXT, teacher_id TEXT, topic TEXT, status TEXT, plan_type TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS exams (exam_name TEXT PRIMARY KEY, start_date TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS exam_marks (id INTEGER PRIMARY KEY AUTOINCREMENT, exam_name TEXT, reg_id TEXT, subject TEXT, total_marks REAL, obtained_marks REAL)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS notices (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, audience TEXT, title TEXT, details TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS exam_marks (id SERIAL PRIMARY KEY, exam_name TEXT, reg_id TEXT, subject TEXT, total_marks REAL, obtained_marks REAL)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS notices (id SERIAL PRIMARY KEY, date TEXT, audience TEXT, title TEXT, details TEXT)''')
     
     # 🟢 نئے فیچرز کے ٹیبلز
     cursor.execute('''CREATE TABLE IF NOT EXISTS transport (vehicle_id TEXT PRIMARY KEY, type TEXT, driver_name TEXT, driver_phone TEXT, route_name TEXT, fare REAL, gps_device_id TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS transport_members (reg_id TEXT PRIMARY KEY, vehicle_id TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS live_locations (device_id TEXT PRIMARY KEY, lat REAL, lon REAL, last_updated TEXT, speed REAL)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, item_name TEXT, category TEXT, total_qty INTEGER, used_qty INTEGER DEFAULT 0)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, sender_name TEXT, sender_type TEXT, reg_id TEXT, subject TEXT, details TEXT, status TEXT DEFAULT 'Pending', admin_reply TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS inventory (id SERIAL PRIMARY KEY, item_name TEXT, category TEXT, total_qty INTEGER, used_qty INTEGER DEFAULT 0)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS complaints (id SERIAL PRIMARY KEY, date TEXT, sender_name TEXT, sender_type TEXT, reg_id TEXT, subject TEXT, details TEXT, status TEXT DEFAULT 'Pending', admin_reply TEXT)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS books (book_id TEXT PRIMARY KEY, title TEXT, author TEXT, category TEXT, total_qty INTEGER, available_qty INTEGER)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS book_issue (id INTEGER PRIMARY KEY AUTOINCREMENT, book_id TEXT, issued_to_type TEXT, reg_id TEXT, issue_date TEXT, due_date TEXT, return_date TEXT, status TEXT DEFAULT 'Issued', fine REAL DEFAULT 0)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS visitors (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT, time_in TEXT, time_out TEXT, name TEXT, phone TEXT, purpose TEXT, to_meet TEXT, status TEXT DEFAULT 'Inside')''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS book_issue (id SERIAL PRIMARY KEY, book_id TEXT, issued_to_type TEXT, reg_id TEXT, issue_date TEXT, due_date TEXT, return_date TEXT, status TEXT DEFAULT 'Issued', fine REAL DEFAULT 0)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS visitors (id SERIAL PRIMARY KEY, date TEXT, time_in TEXT, time_out TEXT, name TEXT, phone TEXT, purpose TEXT, to_meet TEXT, status TEXT DEFAULT 'Inside')''')
 
     # Academic Sessions Table
     cursor.execute('''CREATE TABLE IF NOT EXISTS academic_sessions (session_name TEXT PRIMARY KEY, status TEXT)''')
@@ -282,7 +282,7 @@ active_session = get_active_session()
 
 # ================= لاگ ان اور سیکیورٹی سسٹم =================
 cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    id SERIAL PRIMARY KEY,
                     username TEXT UNIQUE,
                     password TEXT,
                     role TEXT,
@@ -291,7 +291,7 @@ cursor.execute('''CREATE TABLE IF NOT EXISTS users (
 
 # Per-user permissions (safe additive migration; existing users/data are preserved)
 cursor.execute("""CREATE TABLE IF NOT EXISTS user_permissions (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     username TEXT NOT NULL,
     module TEXT NOT NULL,
     can_view INTEGER NOT NULL DEFAULT 0,
