@@ -560,7 +560,7 @@ with st.sidebar:
     active_permission_module = "Salary" if core_choice == "Fee & Salary" and sub_choice in ["Pay Salary", "Salary Slips", "📊 سٹاف سیلری", "🖨️ سیلری سلپس"] else core_choice
     st.session_state.permission_active_module = active_permission_module
     st.session_state.permission_active_perm = get_user_permission(st.session_state.current_user, active_permission_module) if st.session_state.current_role != "Admin" else (1,1,1,1)
-    conn.set_authorizer(permission_authorizer)
+    #conn.set_authorizer(permission_authorizer)
 
     # ================= سائیڈ بار کے بالکل آخر میں (Bottom Section) =================
     st.markdown("<br><hr style='margin: 10px 0; border: none; border-top: 1px solid #f0f0f0;'>", unsafe_allow_html=True)
