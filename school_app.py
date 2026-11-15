@@ -3703,7 +3703,7 @@ if st.button("سیشن تبدیل کریں"):
                         st.success("سیشن اور اس کا سارا ڈیٹا مکمل طور پر ڈیلیٹ ہو گیا!")
                         st.rerun()
 
-        with col_list:
+            with col_list:
             st.markdown("### 🟢 Registered Academic Sessions")
             sessions_df = pd.read_sql("SELECT * FROM academic_sessions", conn)
 
