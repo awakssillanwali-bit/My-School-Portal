@@ -3970,7 +3970,7 @@ elif sub_choice in ["Classes", "کلاسز"]:
                 st.markdown(f"### 📖 {tr('مضامین', 'SUBJECTS')}")
                 st.info(tr("👆 پہلے کلاس اور سیکشن منتخب کریں۔", "👆 Please select class and section first."))
 
-    elif sub_choice in ["Time Table", "ٹائم ٹیبل"]:
+elif sub_choice in ["Time Table", "ٹائم ٹیبل"]:
         st.markdown("<div class='no-print'>", unsafe_allow_html=True)
 
         if 'tt_sel_class' not in st.session_state: st.session_state.tt_sel_class = classes_list[0]
@@ -4019,7 +4019,7 @@ elif sub_choice in ["Classes", "کلاسز"]:
             if not available_subs and "No Subject" not in all_subs[0]: 
                  st.info(tr("اس دن کے تمام مضامین شیڈول ہو چکے ہیں۔", "All subjects for this day are already scheduled."))
                  available_subs = ["تمام مضامین شامل ہو چکے ہیں"]
-            elif not available_subs:
+elif not available_subs:
                  available_subs = all_subs
 
             available_teachers = pd.read_sql("SELECT name FROM staff", conn)['name'].tolist()
@@ -4169,7 +4169,7 @@ elif sub_choice in ["Classes", "کلاسز"]:
             else:
                 st.info(tr("ابھی تک کوئی ٹیچر ٹائم ٹیبل میں شامل نہیں ہے۔", "No teachers in timetable yet."))
 
-    elif sub_choice in ["Lesson Plan", "لیسن پلان"]:
+elif sub_choice in ["Lesson Plan", "لیسن پلان"]:
         st.markdown("<div class='no-print'>", unsafe_allow_html=True)
 
         if 'lp_sel_class' not in st.session_state: st.session_state.lp_sel_class = classes_list[0]
@@ -4236,7 +4236,7 @@ elif sub_choice in ["Classes", "کلاسز"]:
                 if not available_lp_subs and "No Subject" not in all_lp_subs[0]:
                     st.info(tr("اس تاریخ / رینج کے لیے اس کلاس کے تمام مضامین کا لیسن پلان (2 بار) بن چکا ہے۔", "Lesson plans for all subjects are already created twice for this date/range."))
                     available_lp_subs = ["تمام مضامین شامل ہو چکے ہیں"]
-                elif not available_lp_subs:
+elif not available_lp_subs:
                     available_lp_subs = all_lp_subs
 
                 c_lp4, c_lp5 = st.columns(2)
@@ -4253,9 +4253,9 @@ elif sub_choice in ["Classes", "کلاسز"]:
                         conn.commit()
                         st.success(tr("لیسن پلان محفوظ ہو گیا!", "Lesson plan saved!"))
                         st.rerun()
-                    elif "No Subject" in lp_sub:
+elif "No Subject" in lp_sub:
                         st.error(tr("پہلے اس کلاس کے لیے مضامین شامل کریں!", "Please add subjects for this class first!"))
-                    elif "تمام مضامین" in lp_sub:
+elif "تمام مضامین" in lp_sub:
                         st.warning(tr("مزید مضامین باقی نہیں ہیں۔", "No more subjects left."))
 
         with tab_edit:
@@ -4284,7 +4284,7 @@ elif sub_choice in ["Classes", "کلاسز"]:
 
                         curr_ptype = lp_data.get('plan_type', 'Daily' if st.session_state.ui_lang=="English" else "روزانہ")
                         if curr_ptype in type_opts_ur and st.session_state.ui_lang == "English": curr_ptype = type_opts_en[type_opts_ur.index(curr_ptype)]
-                        elif curr_ptype in type_opts_en and st.session_state.ui_lang == "اردو": curr_ptype = type_opts_ur[type_opts_en.index(curr_ptype)]
+elif curr_ptype in type_opts_en and st.session_state.ui_lang == "اردو": curr_ptype = type_opts_ur[type_opts_en.index(curr_ptype)]
                         pt_idx = type_opts.index(curr_ptype) if curr_ptype in type_opts else 0
                         e_lp_type = c_e_lp_type.selectbox(tr("پلان کی قسم", "Plan Type"), type_opts, index=pt_idx, key="e_lp_type")
 
@@ -4407,7 +4407,7 @@ elif sub_choice in ["Classes", "کلاسز"]:
                     else:
                         st.warning(tr("براہ کرم درست ID درج کریں۔", "Please enter a valid ID."))
 
-            elif "All" in del_mode or "تمام" in del_mode:
+elif "All" in del_mode or "تمام" in del_mode:
                 st.error(tr("⚠️ انتباہ: کیا آپ واقعی تمام لیسن پلانز کا ریکارڈ ڈیلیٹ کرنا چاہتے ہیں؟ یہ عمل واپس نہیں ہو سکتا۔", 
                             "⚠️ WARNING: Are you sure you want to delete ALL lesson plans%s This action cannot be undone."))
                 confirm_del = st.checkbox(tr("ہاں، میں تمام ریکارڈ ڈیلیٹ کرنا چاہتا ہوں", "Yes, I want to delete all records"))
@@ -4432,7 +4432,7 @@ elif sub_choice in ["Classes", "کلاسز"]:
         st.dataframe(lp_df, use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    elif sub_choice in ["Exams & Marks", "امتحانات / مارکس"]:
+  elif sub_choice in ["Exams & Marks", "امتحانات / مارکس"]:
         st.markdown("<div class='no-print'>", unsafe_allow_html=True)
 
         if 'ex_sel_class' not in st.session_state: st.session_state.ex_sel_class = classes_list[0]
@@ -4488,7 +4488,7 @@ elif sub_choice in ["Classes", "کلاسز"]:
                     if not available_ex_subs and "No Subject" not in all_ex_subs[0]:
                         st.info(tr("اس کلاس کے تمام مضامین کا رزلٹ اس امتحان کے لیے بن چکا ہے۔", "Marks for all subjects have been entered for this class in this exam."))
                         available_ex_subs = ["تمام مضامین شامل ہو چکے ہیں"]
-                    elif not available_ex_subs:
+elif not available_ex_subs:
                         available_ex_subs = all_ex_subs
 
                     c_em4, c_em5 = st.columns(2)
@@ -4516,15 +4516,15 @@ elif sub_choice in ["Classes", "کلاسز"]:
                             conn.commit()
                             st.success(tr("پوری کلاس کے نمبرز کامیابی سے محفوظ ہو گئے!", "Marks saved successfully for the whole class!"))
                             st.rerun()
-                    elif "No Subject" in em_sub:
+elif "No Subject" in em_sub:
                         st.warning(tr("اس کلاس کے لیے کوئی مضمون شامل نہیں کیا گیا۔", "No subject added for this class."))
                         st.form_submit_button("Ok", disabled=True)
-                    elif "تمام مضامین" in em_sub:
+elif "تمام مضامین" in em_sub:
                          st.form_submit_button("Ok", disabled=True)
             else:
                  st.info(tr("پہلے کوئی امتحان بنائیں۔", "Please create an exam first."))
 
-    elif sub_choice in ["Result Card", "رزلٹ کارڈ"]:
+elif sub_choice in ["Result Card", "رزلٹ کارڈ"]:
         st.markdown("<div class='no-print'>", unsafe_allow_html=True)
         available_exams_res = pd.read_sql("SELECT exam_name FROM exams", conn)['exam_name'].tolist()
 
@@ -4545,7 +4545,7 @@ elif sub_choice in ["Classes", "کلاسز"]:
                 if rc_reg:
                     students_to_print = pd.read_sql(f"SELECT * FROM students WHERE reg_id='{rc_reg}'", conn)
 
-            elif "Class" in gen_mode or "کلاس" in gen_mode:
+elif "Class" in gen_mode or "کلاس" in gen_mode:
                 c_rc1, c_rc2 = st.columns(2)
                 db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
                 if not db_cls: db_cls = classes_list
@@ -4555,7 +4555,7 @@ elif sub_choice in ["Classes", "کلاسز"]:
                 rc_sec = c_rc2.selectbox(tr("سیکشن", "Section"), db_sec)
                 students_to_print = pd.read_sql(f"SELECT * FROM students WHERE class='{rc_cls}' AND section='{rc_sec}' AND status='Active'", conn)
 
-            elif "School" in gen_mode or "سکول" in gen_mode:
+elif "School" in gen_mode or "سکول" in gen_mode:
                 students_to_print = pd.read_sql("SELECT * FROM students WHERE status='Active'", conn)
                 st.info(tr("یہ پورے سکول کے تمام طلباء کے رزلٹ کارڈ ایک ساتھ بنائے گا۔ اس میں تھوڑا وقت لگ سکتا ہے۔", "This will generate result cards for ALL students in the school. It may take some time."))
 
@@ -4580,10 +4580,10 @@ elif sub_choice in ["Classes", "کلاسز"]:
                             percentage = (grand_obtained / grand_total) * 100 if grand_total > 0 else 0
 
                             if percentage >= 80: grade = "A+"
-                            elif percentage >= 70: grade = "A"
-                            elif percentage >= 60: grade = "B"
-                            elif percentage >= 50: grade = "C"
-                            elif percentage >= 40: grade = "D"
+elif percentage >= 70: grade = "A"
+elif percentage >= 60: grade = "B"
+elif percentage >= 50: grade = "C"
+elif percentage >= 40: grade = "D"
                             else: grade = "Fail"
 
                             perc_str = f"{percentage:.2f}%"
