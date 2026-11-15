@@ -3,7 +3,7 @@ import streamlit.components.v1 as components
 import google.generativeai as genai
 import pandas as pd
 import datetime
-import sqlite3
+import psycopg2
 import base64
 import os
 import io
@@ -226,7 +226,9 @@ def get_current_db_filename():
 DB_FILE = get_current_db_filename()
 
 def init_db():
-    conn = sqlite3.connect(DB_FILE, check_same_thread=False)
+    db_url = st.secrets["DATABASE_URL"]
+    conn = psycopg2.connect(db_url)
+    conn.autocommit = True
     cursor = conn.cursor()
     
     cursor.execute('''CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT, blob_value BLOB)''')
@@ -334,10 +336,10 @@ def default_permissions(role, module):
     return defaults.get(role, {}).get(module, (0,0,0,0))
 
 def get_user_permission(username, module):
-    cursor.execute("SELECT role FROM users WHERE username=?", (username,))
+    cursor.execute("SELECT role FROM users WHERE username=%s", (username,))
     role_row = cursor.fetchone()
     role = role_row[0] if role_row else "Viewer"
-    cursor.execute("SELECT can_view, can_add, can_edit, can_delete FROM user_permissions WHERE username=? AND module=?", (username, module))
+    cursor.execute("SELECT can_view, can_add, can_edit, can_delete FROM user_permissions WHERE username=%s AND module=%s", (username, module))
     row = cursor.fetchone()
     return tuple(int(x) for x in row) if row else default_permissions(role, module)
 
@@ -379,7 +381,7 @@ if not st.session_state.logged_in:
             
             if submit_login:
                 if login_user.strip() and login_pass.strip():
-                    cursor.execute("SELECT role, ref_id FROM users WHERE username=? AND password=?", (login_user.strip(), login_pass.strip()))
+                    cursor.execute("SELECT role, ref_id FROM users WHERE username=%s AND password=%s", (login_user.strip(), login_pass.strip()))
                     user_data = cursor.fetchone()
                     
                     if user_data:
@@ -475,7 +477,7 @@ classes_list = ["Play Group", "Nursery", "Prep", "One", "Two", "Three", "Four", 
 months_en = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
 
 def get_setting(key_name):
-    cursor.execute("SELECT value FROM settings WHERE key=?", (key_name,))
+    cursor.execute("SELECT value FROM settings WHERE key=%s", (key_name,))
     row = cursor.fetchone()
     return row[0] if row and row[0] else ""
 
@@ -614,7 +616,7 @@ if core_choice == "User Permissions":
                 if not can_view:
                     can_add = can_edit = can_delete = False
                 cursor.execute("""INSERT INTO user_permissions(username,module,can_view,can_add,can_edit,can_delete)
-                    VALUES(?,?,?,?,?,?) ON CONFLICT(username,module) DO UPDATE SET
+                    VALUES(%s,%s,%s,%s,%s,%s) ON CONFLICT(username,module) DO UPDATE SET
                     can_view=excluded.can_view, can_add=excluded.can_add,
                     can_edit=excluded.can_edit, can_delete=excluded.can_delete""",
                     (selected_user, selected_module, int(can_view), int(can_add), int(can_edit), int(can_delete)))
@@ -622,7 +624,7 @@ if core_choice == "User Permissions":
                 st.success("اس یوزر کی اجازتیں محفوظ ہو گئی ہیں۔")
                 st.rerun()
         st.markdown("### موجودہ کسٹم اجازتوں کا خلاصہ")
-        perm_df = pd.read_sql("SELECT module AS 'Module', can_view AS 'View', can_add AS 'Add', can_edit AS 'Edit', can_delete AS 'Delete' FROM user_permissions WHERE username=? ORDER BY module", conn, params=(selected_user,))
+        perm_df = pd.read_sql("SELECT module AS 'Module', can_view AS 'View', can_add AS 'Add', can_edit AS 'Edit', can_delete AS 'Delete' FROM user_permissions WHERE username=%s ORDER BY module", conn, params=(selected_user,))
         if perm_df.empty: st.info("اس یوزر کے لیے ابھی کوئی کسٹم تبدیلی نہیں؛ رول کی ڈیفالٹ اجازتیں لاگو ہیں۔")
         else: st.dataframe(perm_df, use_container_width=True, hide_index=True)
 
@@ -742,7 +744,7 @@ Active Session {active_session}
         defaulters_html = ""
         try:
             today_str = datetime.date.today().strftime("%Y-%m-%d")
-            cursor.execute("SELECT COUNT(DISTINCT reg_id) FROM fees WHERE status='Unpaid' AND due_date < ?", (today_str,))
+            cursor.execute("SELECT COUNT(DISTINCT reg_id) FROM fees WHERE status='Unpaid' AND due_date < %s", (today_str,))
             defaulters_count = cursor.fetchone()[0]
             
             if defaulters_count > 0:
@@ -912,11 +914,11 @@ elif core_choice in ["School Profile", "سکول پروفائل"]:
         
         if st.form_submit_button("Save Details"):
             for k, v in [("school_name", p_name), ("school_address", p_address), ("school_phone", p_phone), ("school_whatsapp", p_whatsapp), ("school_email", p_email), ("school_website", p_website), ("school_facebook", p_facebook), ("school_reg", p_reg)]:
-                cursor.execute("DELETE FROM settings WHERE key=?", (k,))
-                cursor.execute("INSERT INTO settings (key, value) VALUES (?, ?)", (k, v))
+                cursor.execute("DELETE FROM settings WHERE key=%s", (k,))
+                cursor.execute("INSERT INTO settings (key, value) VALUES (%s, %s)", (k, v))
             if p_logo:
                 cursor.execute("DELETE FROM settings WHERE key='school_logo'")
-                cursor.execute("INSERT INTO settings (key, blob_value) VALUES ('school_logo', ?)", (sqlite3.Binary(p_logo.read()),))
+                cursor.execute("INSERT INTO settings (key, blob_value) VALUES ('school_logo', %s)", (sqlite3.Binary(p_logo.read()),))
             conn.commit()
             st.success("Details Saved Successfully!")
             st.rerun()
@@ -1035,7 +1037,7 @@ elif core_choice in ["Students Mgt", "طلباء مینجمنٹ"]:
             fixed_fee = c17.number_input(tr("مقررہ ماہانہ فیس *", "Monthly Fee *"), min_value=0)
             initial_arrears = c18.number_input(tr("سابقہ بقایا جات", "Previous Arrears"), min_value=0, value=0)
             admission_date = c19.date_input(tr("تاریخِ داخلہ", "Admission Date"), max_value=datetime.date.today())
-            medical_info = c20.text_input(tr("کوئی میڈیکل پیچیدگی؟", "Any Medical Issue?"))
+            medical_info = c20.text_input(tr("کوئی میڈیکل پیچیدگی؟", "Any Medical Issue%s"))
             
             st.markdown(f"#### 🔒 {tr('والدین کا پورٹل لاگ ان (Parent Portal Login)', 'Parent Portal Login')}")
             c_log1, c_log2 = st.columns(2)
@@ -1056,11 +1058,11 @@ elif core_choice in ["Students Mgt", "طلباء مینجمنٹ"]:
                     ad_en = address if st.session_state.ui_lang == "English" else ""
                     
                     try:
-                        cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (guardian_username.strip(), guardian_password.strip(), "Guardian"))
+                        cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)", (guardian_username.strip(), guardian_password.strip(), "Guardian"))
                         cursor.execute("""
                             INSERT INTO students 
                             (reg_id, name, fname, dob, blood, class, section, bform, phone, address, prev_school, prev_class, medical, monthly_fee, adm_date, arrears, gender, mname, fcnic, mcnic, photo, g_type, f_prof, name_en, fname_en, address_en, status) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active')
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active')
                         """, (auto_reg_no, name, father_name, student_dob.strftime("%Y-%m-%d"), blood_group, student_class, student_section, b_form, phone, address, prev_school, prev_class, medical_info, fixed_fee, admission_date.strftime("%Y-%m-%d"), initial_arrears, gender, mname, fcnic, mcnic, photo_data, g_type, f_prof, n_en, fn_en, ad_en))
                         
                         conn.commit()
@@ -1089,7 +1091,7 @@ elif core_choice in ["Students Mgt", "طلباء مینجمنٹ"]:
                 phone_val = str(stu_data.get('phone', '')).strip()
                 parent_user = f"parent_{edit_reg}"
                 
-                cursor.execute("SELECT username, password FROM users WHERE username=? OR (username=? AND username!='')", (parent_user, phone_val))
+                cursor.execute("SELECT username, password FROM users WHERE username=%s OR (username=%s AND username!='')", (parent_user, phone_val))
                 user_row = cursor.fetchone()
                 
                 if user_row:
@@ -1152,26 +1154,26 @@ elif core_choice in ["Students Mgt", "طلباء مینجمنٹ"]:
                             if st.session_state.ui_lang == "اردو":
                                 cursor.execute("""
                                     UPDATE students SET 
-                                    name=?, gender=?, mname=?, fcnic=?, mcnic=?, class=?, section=?, 
-                                    prev_school=?, prev_class=?, f_prof=?, phone=?, monthly_fee=?, arrears=?, 
-                                    adm_date=?, blood=?, bform=?, g_type=?, dob=?, fname=?, address=?
-                                    WHERE reg_id=?
+                                    name=%s, gender=%s, mname=%s, fcnic=%s, mcnic=%s, class=%s, section=%s, 
+                                    prev_school=%s, prev_class=%s, f_prof=%s, phone=%s, monthly_fee=%s, arrears=%s, 
+                                    adm_date=%s, blood=%s, bform=%s, g_type=%s, dob=%s, fname=%s, address=%s
+                                    WHERE reg_id=%s
                                 """, (e_name, e_gender, e_mname, e_fcnic, e_mcnic, e_class, e_sec, e_prev_school, e_prev_class, e_fprof, e_phone, float(e_fee), float(e_arrears), e_adm_date.strftime("%Y-%m-%d"), e_blood_val, e_bform, e_g_type, e_dob.strftime("%Y-%m-%d"), e_fname, e_address, edit_reg))
                             else:
                                 cursor.execute("""
                                     UPDATE students SET 
-                                    name_en=?, gender=?, mname=?, fcnic=?, mcnic=?, class=?, section=?, 
-                                    prev_school=?, prev_class=?, f_prof=?, phone=?, monthly_fee=?, arrears=?, 
-                                    adm_date=?, blood=?, bform=?, g_type=?, dob=?, fname_en=?, address_en=?
-                                    WHERE reg_id=?
+                                    name_en=%s, gender=%s, mname=%s, fcnic=%s, mcnic=%s, class=%s, section=%s, 
+                                    prev_school=%s, prev_class=%s, f_prof=%s, phone=%s, monthly_fee=%s, arrears=%s, 
+                                    adm_date=%s, blood=%s, bform=%s, g_type=%s, dob=%s, fname_en=%s, address_en=%s
+                                    WHERE reg_id=%s
                                 """, (e_name, e_gender, e_mname, e_fcnic, e_mcnic, e_class, e_sec, e_prev_school, e_prev_class, e_fprof, e_phone, float(e_fee), float(e_arrears), e_adm_date.strftime("%Y-%m-%d"), e_blood_val, e_bform, e_g_type, e_dob.strftime("%Y-%m-%d"), e_fname, e_address, edit_reg))
 
                             if e_username.strip():
-                                cursor.execute("SELECT id FROM users WHERE username=?", (e_username.strip(),))
+                                cursor.execute("SELECT id FROM users WHERE username=%s", (e_username.strip(),))
                                 if cursor.fetchone():
-                                    cursor.execute("UPDATE users SET password=?, role='Guardian' WHERE username=?", (e_password.strip(), e_username.strip()))
+                                    cursor.execute("UPDATE users SET password=%s, role='Guardian' WHERE username=%s", (e_password.strip(), e_username.strip()))
                                 else:
-                                    cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, 'Guardian')", (e_username.strip(), e_password.strip()))
+                                    cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, 'Guardian')", (e_username.strip(), e_password.strip()))
                             
                             conn.commit()
                             st.success(tr("✅ ریکارڈ اور پورٹل اکاؤنٹ کامیابی سے اپڈیٹ ہو گئے۔", "Record updated successfully!"))
@@ -1439,12 +1441,12 @@ elif core_choice in ["Students Mgt", "طلباء مینجمنٹ"]:
                         cursor.execute("""
                             INSERT INTO students 
                             (reg_id, name, fname, class, section, gender, phone, monthly_fee, adm_date, status) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active')
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active')
                         """, (str(current_reg), s_name, f_name, s_class, s_sec, s_gender, s_phone, s_fee, s_date))
                         
                         p_username = s_phone if s_phone and s_phone != 'nan' else f"parent_{current_reg}"
                         try:
-                            cursor.execute("INSERT INTO users (username, password, role) VALUES (?, ?, ?)", (p_username, "1234", "Guardian"))
+                            cursor.execute("INSERT INTO users (username, password, role) VALUES (%s, %s, %s)", (p_username, "1234", "Guardian"))
                         except: pass
                         
                         current_reg += 1
@@ -1609,13 +1611,13 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                     ad_en = address if st.session_state.ui_lang == "English" else ""
                     
                     try:
-                        cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES (?, ?, ?, ?)", 
+                        cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES (%s, %s, %s, %s)", 
                                        (staff_username.strip(), staff_password.strip(), staff_role, auto_staff_id))
                         
                         cursor.execute("""
                             INSERT INTO staff 
                             (staff_id, name, fname, cnic, dob, designation, phone, address, joining_date, salary, education, fh_cnic, photo, g_type, name_en, fname_en, address_en, gender, assigned_class, assigned_sec) 
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """, (auto_staff_id, staff_name, father_husband_name, cnic, staff_dob.strftime("%Y-%m-%d"), designation, phone, address, joining_date.strftime("%Y-%m-%d"), salary, education_str, fh_cnic, photo_data, g_type, n_en, fn_en, ad_en, staff_gender, a_cls, a_sec))
                         
                         conn.commit()
@@ -1639,7 +1641,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                     except: pass
                 conn.commit()
                 
-                cursor.execute("SELECT username, password, role FROM users WHERE ref_id=? OR username=?", (edit_staff_id, f"staff_{edit_staff_id}"))
+                cursor.execute("SELECT username, password, role FROM users WHERE ref_id=%s OR username=%s", (edit_staff_id, f"staff_{edit_staff_id}"))
                 ex_u = cursor.fetchone()
                 
                 if ex_u:
@@ -1780,26 +1782,26 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                             
                             if st.session_state.ui_lang == "اردو":
                                 query = """UPDATE staff SET 
-                                    name=?, cnic=?, fh_cnic=?, education=?, phone=?, designation=?, 
-                                    joining_date=?, salary=?, g_type=?, dob=?, gender=?, fname=?, address=?, assigned_class=?, assigned_sec=?
-                                    WHERE staff_id=?"""
+                                    name=%s, cnic=%s, fh_cnic=%s, education=%s, phone=%s, designation=%s, 
+                                    joining_date=%s, salary=%s, g_type=%s, dob=%s, gender=%s, fname=%s, address=%s, assigned_class=%s, assigned_sec=%s
+                                    WHERE staff_id=%s"""
                                 val_tuple = (e_name, e_cnic, e_fh_cnic, education_str, e_phone, e_designation, e_join_date.strftime("%Y-%m-%d"), float(e_salary), e_g_type, e_dob.strftime("%Y-%m-%d"), e_gender, e_fname, e_address, e_a_cls, e_a_sec, edit_staff_id)
                             else:
                                 query = """UPDATE staff SET 
-                                    name_en=?, cnic=?, fh_cnic=?, education=?, phone=?, designation=?, 
-                                    joining_date=?, salary=?, g_type=?, dob=?, gender=?, fname_en=?, address_en=?, assigned_class=?, assigned_sec=?
-                                    WHERE staff_id=?"""
+                                    name_en=%s, cnic=%s, fh_cnic=%s, education=%s, phone=%s, designation=%s, 
+                                    joining_date=%s, salary=%s, g_type=%s, dob=%s, gender=%s, fname_en=%s, address_en=%s, assigned_class=%s, assigned_sec=%s
+                                    WHERE staff_id=%s"""
                                 val_tuple = (e_name, e_cnic, e_fh_cnic, education_str, e_phone, e_designation, e_join_date.strftime("%Y-%m-%d"), float(e_salary), e_g_type, e_dob.strftime("%Y-%m-%d"), e_gender, e_fname, e_address, e_a_cls, e_a_sec, edit_staff_id)
                             
                             cursor.execute(query, val_tuple)
-                            if e_photo: cursor.execute("UPDATE staff SET photo=? WHERE staff_id=?", (e_photo.read(), edit_staff_id))
+                            if e_photo: cursor.execute("UPDATE staff SET photo=%s WHERE staff_id=%s", (e_photo.read(), edit_staff_id))
                             
                             if e_username.strip():
-                                cursor.execute("SELECT id FROM users WHERE username=?", (e_username.strip(),))
+                                cursor.execute("SELECT id FROM users WHERE username=%s", (e_username.strip(),))
                                 if cursor.fetchone():
-                                    cursor.execute("UPDATE users SET password=?, role=?, ref_id=? WHERE username=?", (e_password.strip(), e_role, edit_staff_id, e_username.strip()))
+                                    cursor.execute("UPDATE users SET password=%s, role=%s, ref_id=%s WHERE username=%s", (e_password.strip(), e_role, edit_staff_id, e_username.strip()))
                                 else:
-                                    cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES (?, ?, ?, ?)", (e_username.strip(), e_password.strip(), e_role, edit_staff_id))
+                                    cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES (%s, %s, %s, %s)", (e_username.strip(), e_password.strip(), e_role, edit_staff_id))
 
                             conn.commit()
                             st.balloons()
@@ -1983,7 +1985,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
             font_css = ""
             f_family = "'Arial', sans-serif"
         else:
-            font_css = "<style>@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');</style>"
+            font_css = "<style>@import url('https://fonts.googleapis.com/css2%sfamily=Noto+Nastaliq+Urdu:wght@400;700&display=swap');</style>"
             f_family = "'Jameel Noori Nastaliq', 'Noto Nastaliq Urdu', 'Nafees Web Naskh', Arial, sans-serif"
 
         try: staff_df = pd.read_sql("SELECT * FROM staff", conn)
@@ -2541,8 +2543,8 @@ elif core_choice in ["Attendance", "حاضری سسٹم"]:
 
                 if st.form_submit_button(tr("حاضری محفوظ کریں", "Save Attendance")):
                     for r_id, sts in att_dict.items():
-                        cursor.execute("DELETE FROM attendance WHERE date=? AND type='طالب علم' AND person_id=?", (att_date.strftime('%Y-%m-%d'), r_id))
-                        cursor.execute("INSERT INTO attendance (date, type, person_id, status) VALUES (?, 'طالب علم', ?, ?)", (att_date.strftime('%Y-%m-%d'), r_id, sts))
+                        cursor.execute("DELETE FROM attendance WHERE date=%s AND type='طالب علم' AND person_id=%s", (att_date.strftime('%Y-%m-%d'), r_id))
+                        cursor.execute("INSERT INTO attendance (date, type, person_id, status) VALUES (%s, 'طالب علم', %s, %s)", (att_date.strftime('%Y-%m-%d'), r_id, sts))
                     conn.commit()
                     st.success(tr("طلباء کی حاضری محفوظ ہو گئی!", "Student attendance saved!"))
         else:
@@ -2572,8 +2574,8 @@ elif core_choice in ["Attendance", "حاضری سسٹم"]:
 
                 if st.form_submit_button(tr("حاضری محفوظ کریں", "Save Attendance")):
                     for s_id, sts in att_dict_stf.items():
-                        cursor.execute("DELETE FROM attendance WHERE date=? AND type='سٹاف' AND person_id=?", (att_date_stf.strftime('%Y-%m-%d'), s_id))
-                        cursor.execute("INSERT INTO attendance (date, type, person_id, status) VALUES (?, 'سٹاف', ?, ?)", (att_date_stf.strftime('%Y-%m-%d'), s_id, sts))
+                        cursor.execute("DELETE FROM attendance WHERE date=%s AND type='سٹاف' AND person_id=%s", (att_date_stf.strftime('%Y-%m-%d'), s_id))
+                        cursor.execute("INSERT INTO attendance (date, type, person_id, status) VALUES (%s, 'سٹاف', %s, %s)", (att_date_stf.strftime('%Y-%m-%d'), s_id, sts))
                     conn.commit()
                     st.success(tr("سٹاف کی حاضری محفوظ ہو گئی!", "Staff attendance saved!"))
         else:
@@ -2604,8 +2606,8 @@ elif core_choice in ["Attendance", "حاضری سسٹم"]:
                         r_id = qr_data.split("Student Reg:")[1].strip()
                         s_data = pd.read_sql(f"SELECT name, name_en, class FROM students WHERE reg_id='{r_id}'", conn)
                         if not s_data.empty:
-                            cursor.execute("DELETE FROM attendance WHERE date=? AND type='طالب علم' AND person_id=?", (today_date_att, r_id))
-                            cursor.execute("INSERT INTO attendance (date, type, person_id, status) VALUES (?, 'طالب علم', ?, 'Present')", (today_date_att, r_id))
+                            cursor.execute("DELETE FROM attendance WHERE date=%s AND type='طالب علم' AND person_id=%s", (today_date_att, r_id))
+                            cursor.execute("INSERT INTO attendance (date, type, person_id, status) VALUES (%s, 'طالب علم', %s, 'Present')", (today_date_att, r_id))
                             conn.commit()
                             s_name_disp = get_disp_val(s_data.iloc[0]['name'], s_data.iloc[0].get('name_en'))
                             st.success(f"✅ {s_name_disp} (Class: {s_data.iloc[0]['class']}) - Present!")
@@ -2617,8 +2619,8 @@ elif core_choice in ["Attendance", "حاضری سسٹم"]:
                         s_id = qr_data.split("Staff ID:")[1].strip()
                         s_data = pd.read_sql(f"SELECT name, name_en, designation FROM staff WHERE staff_id='{s_id}'", conn)
                         if not s_data.empty:
-                            cursor.execute("DELETE FROM attendance WHERE date=? AND type='سٹاف' AND person_id=?", (today_date_att, s_id))
-                            cursor.execute("INSERT INTO attendance (date, type, person_id, status) VALUES (?, 'سٹاف', ?, 'Present')", (today_date_att, s_id))
+                            cursor.execute("DELETE FROM attendance WHERE date=%s AND type='سٹاف' AND person_id=%s", (today_date_att, s_id))
+                            cursor.execute("INSERT INTO attendance (date, type, person_id, status) VALUES (%s, 'سٹاف', %s, 'Present')", (today_date_att, s_id))
                             conn.commit()
                             s_name_disp = get_disp_val(s_data.iloc[0]['name'], s_data.iloc[0].get('name_en'))
                             st.success(f"✅ Staff: {s_name_disp} - Present!")
@@ -2759,8 +2761,8 @@ elif core_choice in ["Attendance", "حاضری سسٹم"]:
                                 c_btn1, c_btn2, _ = st.columns([1, 1, 2])
                                 if c_btn1.button("✅ " + tr("منظور کریں (Approve)", "Approve"), key=f"app_{r['id']}", type="primary"):
                                     cursor.execute(f"UPDATE leave_requests SET status='Approved', admin_remarks='چھٹی منظور کر لی گئی ہے۔' WHERE id={r['id']}")
-                                    cursor.execute("DELETE FROM attendance WHERE date=? AND type='طالب علم' AND person_id=?", (r['date'], r['reg_id']))
-                                    cursor.execute("INSERT INTO attendance (date, type, person_id, status) VALUES (?, 'طالب علم', ?, 'Leave')", (r['date'], r['reg_id']))
+                                    cursor.execute("DELETE FROM attendance WHERE date=%s AND type='طالب علم' AND person_id=%s", (r['date'], r['reg_id']))
+                                    cursor.execute("INSERT INTO attendance (date, type, person_id, status) VALUES (%s, 'طالب علم', %s, 'Leave')", (r['date'], r['reg_id']))
                                     conn.commit()
                                     
                                     st.success(tr("درخواست منظور ہو گئی اور حاضری رجسٹر میں خودکار 'چھٹی' لگ گئی۔", "Approved and automatically marked as Leave in attendance sheet."))
@@ -2770,7 +2772,7 @@ elif core_choice in ["Attendance", "حاضری سسٹم"]:
                                     
                                 if c_btn2.button("❌ " + tr("مسترد کریں (Reject)", "Reject"), key=f"rej_{r['id']}"):
                                     final_remark = rej_reason if rej_reason.strip() else "چھٹی کی درخواست نامنظور کر دی گئی ہے۔"
-                                    cursor.execute("UPDATE leave_requests SET status='Rejected', admin_remarks=? WHERE id=?", (final_remark, r['id']))
+                                    cursor.execute("UPDATE leave_requests SET status='Rejected', admin_remarks=%s WHERE id=%s", (final_remark, r['id']))
                                     conn.commit()
                                     st.error(tr("درخواست مسترد کر دی گئی۔", "Request Rejected."))
                                     import time
@@ -2919,17 +2921,17 @@ elif core_choice in ["Fee & Salary", "فیس، رسیدیں، سیلری"]:
                     due_dt = g_due.strftime("%d %b %Y")
                     fee_month_str = f"{g_month}-{g_year}"
                     
-                    cursor.execute("SELECT status FROM fees WHERE invoice_no=?", (inv_no,))
+                    cursor.execute("SELECT status FROM fees WHERE invoice_no=%s", (inv_no,))
                     existing_status = cursor.fetchone()
                     
-                    cursor.execute("SELECT * FROM fees WHERE reg_id=? AND month=?", (s_reg, fee_month_str))
+                    cursor.execute("SELECT * FROM fees WHERE reg_id=%s AND month=%s", (s_reg, fee_month_str))
                     if cursor.fetchone():
                         st.error(f"⚠️ رول نمبر {s_reg} کا {fee_month_str} کے مہینے کا چالان پہلے ہی بن چکا ہے!")
                     else:
                         if not existing_status: 
-                            cursor.execute("INSERT INTO fees (date, reg_id, month, tuition, arrears_col, total, status, due_date, invoice_no) VALUES (?, ?, ?, ?, ?, ?, 'Unpaid', ?, ?)", (issue_dt, s_reg, fee_month_str, t_fee, arrears, total_amt, str(g_due), inv_no))
+                            cursor.execute("INSERT INTO fees (date, reg_id, month, tuition, arrears_col, total, status, due_date, invoice_no) VALUES (%s, %s, %s, %s, %s, %s, 'Unpaid', %s, %s)", (issue_dt, s_reg, fee_month_str, t_fee, arrears, total_amt, str(g_due), inv_no))
                         elif existing_status[0] == 'Unpaid': 
-                            cursor.execute("UPDATE fees SET tuition=?, arrears_col=?, total=?, due_date=?, date=? WHERE invoice_no=?", (t_fee, arrears, total_amt, str(g_due), issue_dt, inv_no))
+                            cursor.execute("UPDATE fees SET tuition=%s, arrears_col=%s, total=%s, due_date=%s, date=%s WHERE invoice_no=%s", (t_fee, arrears, total_amt, str(g_due), issue_dt, inv_no))
                         conn.commit()
                         
                         full_html += get_single_challan_row(s_reg, s_name, s_fname, s_class, s_sec, t_fee, arrears, advance, total_amt, inv_no, issue_dt, due_dt, g_month, g_year, logo_src_b64, school_name, discount_amt, extra_charges_dict)
@@ -2983,9 +2985,9 @@ elif core_choice in ["Fee & Salary", "فیس، رسیدیں، سیلری"]:
                                 inv, amt, sts = row['Invoice No'], row['Amount'], row['Status']
                                 if sts == 'Unpaid':
                                     reg = inv_df[inv_df['invoice_no'] == inv]['reg_id'].iloc[0]
-                                    cursor.execute("UPDATE fees SET status='Paid' WHERE invoice_no=?", (inv,))
+                                    cursor.execute("UPDATE fees SET status='Paid' WHERE invoice_no=%s", (inv,))
                                     v_num = pd.read_sql("SELECT COUNT(*) FROM accounts", conn).iloc[0, 0] + 1001
-                                    cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, 'آمدنی', ?, ?, 'Fee Collection', ?)", (datetime.date.today().strftime('%Y-%m-%d'), f"Fee Inv: {inv}", amt, f"V-{v_num}"))
+                                    cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (%s, 'آمدنی', %s, %s, 'Fee Collection', %s)", (datetime.date.today().strftime('%Y-%m-%d'), f"Fee Inv: {inv}", amt, f"V-{v_num}"))
                                     cursor.execute(f"UPDATE students SET arrears=0, advance_fee=0 WHERE reg_id='{reg}'")
                             conn.commit()
                             st.success("Selected invoices have been marked as PAID successfully!")
@@ -3013,10 +3015,10 @@ elif core_choice in ["Fee & Salary", "فیس، رسیدیں، سیلری"]:
                             if received_amt < s_amt_total: new_arrears, new_advance = s_amt_total - received_amt, 0
                             else: new_arrears, new_advance = 0, received_amt - s_amt_total
                             
-                            cursor.execute("UPDATE students SET arrears=?, advance_fee=? WHERE reg_id=?", (new_arrears, new_advance, s_reg))
-                            cursor.execute("UPDATE fees SET status='Paid', total=? WHERE invoice_no=?", (received_amt, s_inv))
+                            cursor.execute("UPDATE students SET arrears=%s, advance_fee=%s WHERE reg_id=%s", (new_arrears, new_advance, s_reg))
+                            cursor.execute("UPDATE fees SET status='Paid', total=%s WHERE invoice_no=%s", (received_amt, s_inv))
                             v_num = pd.read_sql("SELECT COUNT(*) FROM accounts", conn).iloc[0, 0] + 1001
-                            cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, 'آمدنی', ?, ?, 'Fee Collection', ?)", (datetime.date.today().strftime('%Y-%m-%d'), f"Custom Fee: {s_inv}", received_amt, f"V-{v_num}"))
+                            cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (%s, 'آمدنی', %s, %s, 'Fee Collection', %s)", (datetime.date.today().strftime('%Y-%m-%d'), f"Custom Fee: {s_inv}", received_amt, f"V-{v_num}"))
                             conn.commit()
                             st.success(tr("فیس کامیابی سے جمع ہو گئی اور لیجر اپڈیٹ ہو گیا!", "Fee collected and ledger updated!"))
                             st.rerun()
@@ -3156,13 +3158,13 @@ elif core_choice in ["Fee & Salary", "فیس، رسیدیں، سیلری"]:
                             st.info(f"**بنیادی تنخواہ:** Rs {stf_base_salary} \n\n**غیر حاضریاں (Absents):** {absent_count} دن (- Rs {absent_deduction}) \n\n**پچھلا ایڈوانس:** Rs {stf_advance} \n\n**کل قابلِ ادائیگی (Net Payable): Rs {net_payable}**")
                             
                             if st.form_submit_button("✅ اس مہینے کی تنخواہ کلیئر کریں", type="primary"):
-                                cursor.execute("SELECT * FROM salary_records WHERE staff_id=? AND month=? AND remarks='Salary'", (exact_id, sal_month))
+                                cursor.execute("SELECT * FROM salary_records WHERE staff_id=%s AND month=%s AND remarks='Salary'", (exact_id, sal_month))
                                 if cursor.fetchone():
                                     st.error(f"⚠️ اس سٹاف ممبر کی {sal_month} کی تنخواہ پہلے ہی ادا ہو چکی ہے!")
                                 else:
                                     v_num = pd.read_sql("SELECT COUNT(*) FROM accounts", conn).iloc[0, 0] + 1001
-                                    cursor.execute("INSERT INTO salary_records VALUES (?, ?, ?, ?, ?)", (datetime.date.today().strftime('%Y-%m-%d'), exact_id, sal_month, net_payable, "Salary"))
-                                    cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, 'خرچ', ?, ?, 'Staff Salary', ?)", (datetime.date.today().strftime('%Y-%m-%d'), f"Salary - {p_sid_name} ({sal_month})", net_payable, f"V-{v_num}"))
+                                    cursor.execute("INSERT INTO salary_records VALUES (%s, %s, %s, %s, %s)", (datetime.date.today().strftime('%Y-%m-%d'), exact_id, sal_month, net_payable, "Salary"))
+                                    cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (%s, 'خرچ', %s, %s, 'Staff Salary', %s)", (datetime.date.today().strftime('%Y-%m-%d'), f"Salary - {p_sid_name} ({sal_month})", net_payable, f"V-{v_num}"))
                                     cursor.execute(f"UPDATE staff SET advance_salary=0 WHERE staff_id='{exact_id}'")
                                     conn.commit()
                                     st.success(f"تنخواہ کامیابی سے ادا کر دی گئی! (غیر حاضری کی کٹوتی: Rs {absent_deduction})")
@@ -3179,8 +3181,8 @@ elif core_choice in ["Fee & Salary", "فیس، رسیدیں، سیلری"]:
                             curr_adv = safe_int(staff_list_df[staff_list_df['name'] == adv_sid_name].iloc[0].get('advance_salary', 0))
                             v_num = pd.read_sql("SELECT COUNT(*) FROM accounts", conn).iloc[0, 0] + 1001
                             
-                            cursor.execute("INSERT INTO salary_records VALUES (?, ?, ?, ?, ?)", (datetime.date.today().strftime('%Y-%m-%d'), adv_id, sal_month, adv_amt, "Advance"))
-                            cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, 'خرچ', ?, ?, 'Staff Salary', ?)", (datetime.date.today().strftime('%Y-%m-%d'), f"Advance - {adv_sid_name}", adv_amt, f"V-{v_num}"))
+                            cursor.execute("INSERT INTO salary_records VALUES (%s, %s, %s, %s, %s)", (datetime.date.today().strftime('%Y-%m-%d'), adv_id, sal_month, adv_amt, "Advance"))
+                            cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (%s, 'خرچ', %s, %s, 'Staff Salary', %s)", (datetime.date.today().strftime('%Y-%m-%d'), f"Advance - {adv_sid_name}", adv_amt, f"V-{v_num}"))
                             cursor.execute(f"UPDATE staff SET advance_salary={curr_adv + adv_amt} WHERE staff_id='{adv_id}'")
                             conn.commit()
                             st.success(f"{adv_amt} روپے ایڈوانس کے طور پر لیجر میں شامل ہو گئے۔")
@@ -3411,7 +3413,7 @@ elif core_choice in ["اکاؤنٹس اور رپورٹس", "Accounts"]:
                     v_num = pd.read_sql("SELECT COUNT(*) FROM accounts", conn).iloc[0, 0] + 1001
                     db_type = 'آمدنی' if "آمدنی" in me_type or "Income" in me_type else 'خرچ'
 
-                    cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, ?, ?, ?, ?, ?)", 
+                    cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (%s, %s, %s, %s, %s, %s)", 
                                    (me_date.strftime("%Y-%m-%d"), db_type, me_desc, me_amount, me_head, f"V-{v_num}"))
                     conn.commit()
                     st.success(tr("انٹری کامیابی سے کھاتے میں شامل ہو گئی!", "Entry added to accounts successfully!"))
@@ -3637,11 +3639,11 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 if st.form_submit_button("+ Add Session Year", type="primary"):
                     if new_sess_name.strip():
                         new_session = new_sess_name.strip()
-                        cursor.execute("SELECT * FROM academic_sessions WHERE session_name=?", (new_session,))
+                        cursor.execute("SELECT * FROM academic_sessions WHERE session_name=%s", (new_session,))
                         if cursor.fetchone():
                             st.error("یہ سیشن پہلے سے موجود ہے!")
                         else:
-                            cursor.execute("INSERT INTO academic_sessions VALUES (?, 'INACTIVE')", (new_session,))
+                            cursor.execute("INSERT INTO academic_sessions VALUES (%s, 'INACTIVE')", (new_session,))
                             conn.commit()
 
                             new_db_file = f'school_system_{new_session}.db'
@@ -3671,11 +3673,11 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 c_e1, c_e2 = st.columns(2)
                 if c_e1.button("✏️ Update Name", use_container_width=True):
                     if new_sess_val.strip() and new_sess_val != sel_edit_sess:
-                        cursor.execute("SELECT * FROM academic_sessions WHERE session_name=?", (new_sess_val.strip(),))
+                        cursor.execute("SELECT * FROM academic_sessions WHERE session_name=%s", (new_sess_val.strip(),))
                         if cursor.fetchone():
                             st.error("یہ نام پہلے سے کسی سیشن کا ہے!")
                         else:
-                            cursor.execute("UPDATE academic_sessions SET session_name=? WHERE session_name=?", (new_sess_val.strip(), sel_edit_sess))
+                            cursor.execute("UPDATE academic_sessions SET session_name=%s WHERE session_name=%s", (new_sess_val.strip(), sel_edit_sess))
                             conn.commit()
 
                             old_file = 'school_system.db' if sel_edit_sess == '2026-27' else f'school_system_{sel_edit_sess}.db'
@@ -3695,7 +3697,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                     if active_session == sel_edit_sess:
                         st.error("⚠️ آپ ایکٹو (Active) سیشن کو ڈیلیٹ نہیں کر سکتے۔ پہلے کوئی اور سیشن ایکٹو کریں۔")
                     else:
-                        cursor.execute("DELETE FROM academic_sessions WHERE session_name=?", (sel_edit_sess,))
+                        cursor.execute("DELETE FROM academic_sessions WHERE session_name=%s", (sel_edit_sess,))
                         conn.commit()
 
                         del_file = 'school_system.db' if sel_edit_sess == '2026-27' else f'school_system_{sel_edit_sess}.db'
@@ -3738,7 +3740,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                                 try:
                                     t_conn = sqlite3.connect(target_db)
                                     t_conn.execute("UPDATE academic_sessions SET status='INACTIVE'")
-                                    t_conn.execute("UPDATE academic_sessions SET status='ACTIVE' WHERE session_name=?", (s_name,))
+                                    t_conn.execute("UPDATE academic_sessions SET status='ACTIVE' WHERE session_name=%s", (s_name,))
                                     t_conn.commit()
                                     t_conn.close()
                                 except: pass
@@ -3758,17 +3760,17 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
         cursor.execute('''CREATE TABLE IF NOT EXISTS sys_subjects (id INTEGER PRIMARY KEY AUTOINCREMENT, class_name TEXT, section_name TEXT, subject_name TEXT)''')
 
         for c in classes_list:
-            cursor.execute("INSERT OR IGNORE INTO sys_classes (class_name) VALUES (?)", (c,))
+            cursor.execute("INSERT OR IGNORE INTO sys_classes (class_name) VALUES (%s)", (c,))
 
         cursor.execute("SELECT DISTINCT class FROM students WHERE class IS NOT NULL AND class != ''")
         for cls in cursor.fetchall():
-            cursor.execute("INSERT OR IGNORE INTO sys_classes (class_name) VALUES (?)", (cls[0],))
+            cursor.execute("INSERT OR IGNORE INTO sys_classes (class_name) VALUES (%s)", (cls[0],))
 
         cursor.execute("SELECT DISTINCT class, section FROM students WHERE class IS NOT NULL AND section IS NOT NULL AND section != ''")
         for c_name, s_name in cursor.fetchall():
-            cursor.execute("SELECT id FROM sys_sections WHERE class_name=? AND section_name=?", (c_name, s_name))
+            cursor.execute("SELECT id FROM sys_sections WHERE class_name=%s AND section_name=%s", (c_name, s_name))
             if not cursor.fetchone():
-                cursor.execute("INSERT INTO sys_sections (class_name, section_name) VALUES (?, ?)", (c_name, s_name))
+                cursor.execute("INSERT INTO sys_sections (class_name, section_name) VALUES (%s, %s)", (c_name, s_name))
 
         cursor.execute("SELECT class_name, section_name FROM sys_sections")
         all_sys_sections = cursor.fetchall()
@@ -3777,10 +3779,10 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
             cursor.execute("SELECT subject_name FROM subjects")
             old_subjects = [s[0] for s in cursor.fetchall()]
             for c_n, s_n in all_sys_sections:
-                cursor.execute("SELECT COUNT(*) FROM sys_subjects WHERE class_name=? AND section_name=?", (c_n, s_n))
+                cursor.execute("SELECT COUNT(*) FROM sys_subjects WHERE class_name=%s AND section_name=%s", (c_n, s_n))
                 if cursor.fetchone()[0] == 0:
                     for sub in old_subjects:
-                        cursor.execute("INSERT INTO sys_subjects (class_name, section_name, subject_name) VALUES (?, ?, ?)", (c_n, s_n, sub))
+                        cursor.execute("INSERT INTO sys_subjects (class_name, section_name, subject_name) VALUES (%s, %s, %s)", (c_n, s_n, sub))
         except: pass
 
         conn.commit()
@@ -3808,9 +3810,9 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                         st.session_state.mgt_sel_sec = None
                         st.rerun()
                     if cc2.button("🗑️", key=f"del_c_{c_name}"):
-                        cursor.execute("DELETE FROM sys_classes WHERE class_name=?", (c_name,))
-                        cursor.execute("DELETE FROM sys_sections WHERE class_name=?", (c_name,))
-                        cursor.execute("DELETE FROM sys_subjects WHERE class_name=?", (c_name,))
+                        cursor.execute("DELETE FROM sys_classes WHERE class_name=%s", (c_name,))
+                        cursor.execute("DELETE FROM sys_sections WHERE class_name=%s", (c_name,))
+                        cursor.execute("DELETE FROM sys_subjects WHERE class_name=%s", (c_name,))
                         conn.commit()
                         if st.session_state.mgt_sel_class == c_name:
                             st.session_state.mgt_sel_class = None
@@ -3824,7 +3826,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 if st.form_submit_button(tr("➕ شامل کریں", "➕ Add"), use_container_width=True):
                     if new_class.strip():
                         try:
-                            cursor.execute("INSERT INTO sys_classes (class_name) VALUES (?)", (new_class.strip(),))
+                            cursor.execute("INSERT INTO sys_classes (class_name) VALUES (%s)", (new_class.strip(),))
                             conn.commit()
                             st.rerun()
                         except: st.error("Class already exists!")
@@ -3839,15 +3841,15 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                             if new_c_name.strip() and new_c_name.strip() != c_to_edit:
                                 n_c = new_c_name.strip()
                                 try:
-                                    cursor.execute("INSERT INTO sys_classes (class_name) VALUES (?)", (n_c,))
-                                    cursor.execute("DELETE FROM sys_classes WHERE class_name=?", (c_to_edit,))
-                                    cursor.execute("UPDATE sys_sections SET class_name=? WHERE class_name=?", (n_c, c_to_edit))
-                                    cursor.execute("UPDATE sys_subjects SET class_name=? WHERE class_name=?", (n_c, c_to_edit))
-                                    try: cursor.execute("UPDATE students SET class=? WHERE class=?", (n_c, c_to_edit))
+                                    cursor.execute("INSERT INTO sys_classes (class_name) VALUES (%s)", (n_c,))
+                                    cursor.execute("DELETE FROM sys_classes WHERE class_name=%s", (c_to_edit,))
+                                    cursor.execute("UPDATE sys_sections SET class_name=%s WHERE class_name=%s", (n_c, c_to_edit))
+                                    cursor.execute("UPDATE sys_subjects SET class_name=%s WHERE class_name=%s", (n_c, c_to_edit))
+                                    try: cursor.execute("UPDATE students SET class=%s WHERE class=%s", (n_c, c_to_edit))
                                     except: pass
-                                    try: cursor.execute("UPDATE timetable SET class=? WHERE class=?", (n_c, c_to_edit))
+                                    try: cursor.execute("UPDATE timetable SET class=%s WHERE class=%s", (n_c, c_to_edit))
                                     except: pass
-                                    try: cursor.execute("UPDATE lesson_plan SET class=? WHERE class=?", (n_c, c_to_edit))
+                                    try: cursor.execute("UPDATE lesson_plan SET class=%s WHERE class=%s", (n_c, c_to_edit))
                                     except: pass
                                     conn.commit()
                                     if st.session_state.mgt_sel_class == c_to_edit:
@@ -3875,8 +3877,8 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                             st.session_state.mgt_sel_sec = s_name
                             st.rerun()
                         if sc2.button("🗑️", key=f"del_s_{s_id}"):
-                            cursor.execute("DELETE FROM sys_sections WHERE id=?", (s_id,))
-                            cursor.execute("DELETE FROM sys_subjects WHERE class_name=? AND section_name=?", (sel_c, s_name))
+                            cursor.execute("DELETE FROM sys_sections WHERE id=%s", (s_id,))
+                            cursor.execute("DELETE FROM sys_subjects WHERE class_name=%s AND section_name=%s", (sel_c, s_name))
                             conn.commit()
                             if st.session_state.mgt_sel_sec == s_name:
                                 st.session_state.mgt_sel_sec = None
@@ -3889,7 +3891,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                     new_sec = st.text_input(f"Add Section to {sel_c}", placeholder="e.g. A, B, Model")
                     if st.form_submit_button(tr("➕ شامل کریں", "➕ Add"), use_container_width=True):
                         if new_sec.strip():
-                            cursor.execute("INSERT INTO sys_sections (class_name, section_name) VALUES (?, ?)", (sel_c, new_sec.strip()))
+                            cursor.execute("INSERT INTO sys_sections (class_name, section_name) VALUES (%s, %s)", (sel_c, new_sec.strip()))
                             conn.commit()
                             st.rerun()
 
@@ -3903,13 +3905,13 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                                 if new_s_name.strip():
                                     old_s_name = sec_list_db[sec_list_db['id']==s_to_edit_id]['section_name'].values[0]
                                     n_s = new_s_name.strip()
-                                    cursor.execute("UPDATE sys_sections SET section_name=? WHERE id=?", (n_s, s_to_edit_id))
-                                    cursor.execute("UPDATE sys_subjects SET section_name=? WHERE class_name=? AND section_name=?", (n_s, sel_c, old_s_name))
-                                    try: cursor.execute("UPDATE students SET section=? WHERE class=? AND section=?", (n_s, sel_c, old_s_name))
+                                    cursor.execute("UPDATE sys_sections SET section_name=%s WHERE id=%s", (n_s, s_to_edit_id))
+                                    cursor.execute("UPDATE sys_subjects SET section_name=%s WHERE class_name=%s AND section_name=%s", (n_s, sel_c, old_s_name))
+                                    try: cursor.execute("UPDATE students SET section=%s WHERE class=%s AND section=%s", (n_s, sel_c, old_s_name))
                                     except: pass
-                                    try: cursor.execute("UPDATE timetable SET section=? WHERE class=? AND section=?", (n_s, sel_c, old_s_name))
+                                    try: cursor.execute("UPDATE timetable SET section=%s WHERE class=%s AND section=%s", (n_s, sel_c, old_s_name))
                                     except: pass
-                                    try: cursor.execute("UPDATE lesson_plan SET section=? WHERE class=? AND section=?", (n_s, sel_c, old_s_name))
+                                    try: cursor.execute("UPDATE lesson_plan SET section=%s WHERE class=%s AND section=%s", (n_s, sel_c, old_s_name))
                                     except: pass
                                     conn.commit()
                                     if st.session_state.mgt_sel_sec == old_s_name:
@@ -3933,7 +3935,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                         sb1, sb2 = st.columns([4, 1])
                         sb1.markdown(f"<div style='border:1px solid #ccc; padding:7px 10px; border-radius:5px; margin-bottom:5px; background:white;'>{sub_name}</div>", unsafe_allow_html=True)
                         if sb2.button("🗑️", key=f"del_sub_{sub_id}"):
-                            cursor.execute("DELETE FROM sys_subjects WHERE id=?", (sub_id,))
+                            cursor.execute("DELETE FROM sys_subjects WHERE id=%s", (sub_id,))
                             conn.commit()
                             st.rerun()
                 else:
@@ -3944,7 +3946,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                     new_sub = st.text_input(f"Add Subject to Sec {sel_s}", placeholder="e.g. Biology, English")
                     if st.form_submit_button(tr("➕ شامل کریں", "➕ Add"), use_container_width=True):
                         if new_sub.strip():
-                            cursor.execute("INSERT INTO sys_subjects (class_name, section_name, subject_name) VALUES (?, ?, ?)", (sel_c, sel_s, new_sub.strip()))
+                            cursor.execute("INSERT INTO sys_subjects (class_name, section_name, subject_name) VALUES (%s, %s, %s)", (sel_c, sel_s, new_sub.strip()))
                             conn.commit()
                             st.rerun()
 
@@ -3958,12 +3960,12 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                                 if new_sub_name.strip():
                                     old_sub_name = sub_list_db[sub_list_db['id']==sub_to_edit_id]['subject_name'].values[0]
                                     n_sub = new_sub_name.strip()
-                                    cursor.execute("UPDATE sys_subjects SET subject_name=? WHERE id=?", (n_sub, sub_to_edit_id))
-                                    try: cursor.execute("UPDATE timetable SET subject=? WHERE class=? AND section=? AND subject=?", (n_sub, sel_c, sel_s, old_sub_name))
+                                    cursor.execute("UPDATE sys_subjects SET subject_name=%s WHERE id=%s", (n_sub, sub_to_edit_id))
+                                    try: cursor.execute("UPDATE timetable SET subject=%s WHERE class=%s AND section=%s AND subject=%s", (n_sub, sel_c, sel_s, old_sub_name))
                                     except: pass
-                                    try: cursor.execute("UPDATE lesson_plan SET subject=? WHERE class=? AND section=? AND subject=?", (n_sub, sel_c, sel_s, old_sub_name))
+                                    try: cursor.execute("UPDATE lesson_plan SET subject=%s WHERE class=%s AND section=%s AND subject=%s", (n_sub, sel_c, sel_s, old_sub_name))
                                     except: pass
-                                    try: cursor.execute("UPDATE exam_marks SET subject=? WHERE subject=? AND reg_id IN (SELECT reg_id FROM students WHERE class=? AND section=?)", (n_sub, old_sub_name, sel_c, sel_s))
+                                    try: cursor.execute("UPDATE exam_marks SET subject=%s WHERE subject=%s AND reg_id IN (SELECT reg_id FROM students WHERE class=%s AND section=%s)", (n_sub, old_sub_name, sel_c, sel_s))
                                     except: pass
                                     conn.commit()
                                     st.success(tr("نام کامیابی سے تبدیل ہو گیا!", "Name updated successfully!"))
@@ -4036,7 +4038,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 tt_teacher = c_p3.selectbox(tr("استاد (Teacher)", "Teacher"), available_teachers)
 
                 if st.button(tr("ٹائم ٹیبل محفوظ کریں", "Save Timetable")):
-                    cursor.execute("INSERT INTO timetable (class, section, day, period, subject, teacher_id) VALUES (?, ?, ?, ?, ?, ?)", (tt_add_class, tt_add_sec, tt_day, tt_period, tt_sub, tt_teacher))
+                    cursor.execute("INSERT INTO timetable (class, section, day, period, subject, teacher_id) VALUES (%s, %s, %s, %s, %s, %s)", (tt_add_class, tt_add_sec, tt_day, tt_period, tt_sub, tt_teacher))
                     conn.commit()
                     st.success(tr("محفوظ ہو گیا!", "Saved!"))
                     st.rerun()
@@ -4059,7 +4061,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
             tt_v_sec = c_v2.selectbox(tr("سیکشن", "Section"), db_sec2, index=db_sec2.index(st.session_state.tt_sel_sec) if st.session_state.tt_sel_sec in db_sec2 else 0, key="tt_v_sec")
 
             if st.button("🗑️ " + tr("اس کلاس کا ٹائم ٹیبل ڈیلیٹ کریں", "Clear Timetable for this Class")):
-                 cursor.execute("DELETE FROM timetable WHERE class=? AND section=?", (tt_v_class, tt_v_sec))
+                 cursor.execute("DELETE FROM timetable WHERE class=%s AND section=%s", (tt_v_class, tt_v_sec))
                  conn.commit()
                  st.rerun()
 
@@ -4250,7 +4252,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
 
                 if st.form_submit_button(tr("ڈائری محفوظ کریں", "Save Lesson Plan")):
                     if lp_topic and "No Subject" not in lp_sub and "تمام مضامین" not in lp_sub:
-                        cursor.execute("INSERT INTO lesson_plan (date, class, section, subject, teacher_id, topic, status, plan_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
+                        cursor.execute("INSERT INTO lesson_plan (date, class, section, subject, teacher_id, topic, status, plan_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", 
                                        (final_date_str, lp_class, lp_sec, lp_sub, lp_teacher, lp_topic, lp_status, lp_type))
                         conn.commit()
                         st.success(tr("لیسن پلان محفوظ ہو گیا!", "Lesson plan saved!"))
@@ -4338,8 +4340,8 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
 
                                 cursor.execute("""
                                     UPDATE lesson_plan 
-                                    SET date=?, class=?, section=?, subject=?, teacher_id=?, topic=?, status=?, plan_type=? 
-                                    WHERE id=?
+                                    SET date=%s, class=%s, section=%s, subject=%s, teacher_id=%s, topic=%s, status=%s, plan_type=%s 
+                                    WHERE id=%s
                                 """, (final_e_date, e_lp_class, e_lp_sec, e_lp_sub, e_lp_teacher, e_lp_topic, e_lp_status, e_lp_type, edit_lp_id))
                                 conn.commit()
                                 st.success(tr("لیسن پلان کامیابی سے تبدیل ہو گیا!", "Lesson plan updated successfully!"))
@@ -4373,7 +4375,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                     if selected_ids:
                         comp_str = "Completed" if st.session_state.ui_lang == "English" else "مکمل ہو گیا"
                         for pid in selected_ids:
-                            cursor.execute("UPDATE lesson_plan SET status=? WHERE id=?", (comp_str, pid))
+                            cursor.execute("UPDATE lesson_plan SET status=%s WHERE id=%s", (comp_str, pid))
                         conn.commit()
                         st.success(tr(f"{len(selected_ids)} لیسن پلانز کامیابی سے مکمل کر دیے گئے! پرفارمنس اپڈیٹ ہو گئی۔", f"{len(selected_ids)} lesson plans marked as completed successfully! Performance updated."))
                         st.rerun()
@@ -4398,9 +4400,9 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                 if c_d1.button("🗑️ " + tr("ڈیلیٹ کریں", "Delete"), key="btn_del_single"):
                     if del_id_str.isdigit():
                         del_id = int(del_id_str)
-                        cursor.execute("SELECT id FROM lesson_plan WHERE id=?", (del_id,))
+                        cursor.execute("SELECT id FROM lesson_plan WHERE id=%s", (del_id,))
                         if cursor.fetchone():
-                            cursor.execute("DELETE FROM lesson_plan WHERE id=?", (del_id,))
+                            cursor.execute("DELETE FROM lesson_plan WHERE id=%s", (del_id,))
                             conn.commit()
                             st.success(tr("لیسن پلان کامیابی سے ڈیلیٹ ہو گیا!", "Lesson plan deleted successfully!"))
                             st.rerun()
@@ -4411,7 +4413,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
 
             elif "All" in del_mode or "تمام" in del_mode:
                 st.error(tr("⚠️ انتباہ: کیا آپ واقعی تمام لیسن پلانز کا ریکارڈ ڈیلیٹ کرنا چاہتے ہیں؟ یہ عمل واپس نہیں ہو سکتا۔", 
-                            "⚠️ WARNING: Are you sure you want to delete ALL lesson plans? This action cannot be undone."))
+                            "⚠️ WARNING: Are you sure you want to delete ALL lesson plans%s This action cannot be undone."))
                 confirm_del = st.checkbox(tr("ہاں، میں تمام ریکارڈ ڈیلیٹ کرنا چاہتا ہوں", "Yes, I want to delete all records"))
 
                 if st.button("🚨 " + tr("تمام ریکارڈ ڈیلیٹ کریں", "Delete All Records"), key="btn_del_all"):
@@ -4448,7 +4450,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
             if st.button(tr("امتحان محفوظ کریں", "Save Exam")):
                 if exam_name:
                     try: 
-                        cursor.execute("INSERT INTO exams (exam_name, start_date) VALUES (?, ?)", (exam_name, exam_date.strftime("%Y-%m-%d")))
+                        cursor.execute("INSERT INTO exams (exam_name, start_date) VALUES (%s, %s)", (exam_name, exam_date.strftime("%Y-%m-%d")))
                         conn.commit()
                         st.success("Exam created!")
                         st.rerun()
@@ -4514,7 +4516,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                                 except: obt_m = 0.0
                                 if obt_m > tot_marks: obt_m = tot_marks
                                 if obt_m < 0: obt_m = 0.0
-                                cursor.execute("INSERT INTO exam_marks (exam_name, reg_id, subject, total_marks, obtained_marks) VALUES (?, ?, ?, ?, ?)", (em_exam, r_id, em_sub, tot_marks, obt_m))
+                                cursor.execute("INSERT INTO exam_marks (exam_name, reg_id, subject, total_marks, obtained_marks) VALUES (%s, %s, %s, %s, %s)", (em_exam, r_id, em_sub, tot_marks, obt_m))
                             conn.commit()
                             st.success(tr("پوری کلاس کے نمبرز کامیابی سے محفوظ ہو گئے!", "Marks saved successfully for the whole class!"))
                             st.rerun()
@@ -4719,7 +4721,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
             st.write("---")
             st.markdown(f"#### ⚙️ {tr('ایکشن منتخب کریں', 'Select Action')}")
 
-            action_type = st.radio(tr("ان طلباء کے ساتھ کیا کرنا ہے؟", "What to do with selected students?"),
+            action_type = st.radio(tr("ان طلباء کے ساتھ کیا کرنا ہے؟", "What to do with selected students%s"),
                                    [tr("اگلی کلاس میں پرموٹ کریں (Promote)", "Promote to Next Class"),
                                     tr("فارغ التحصیل / سکول چھوڑ گئے (Mark as Left/Graduated)", "Mark as Left/Graduated")], horizontal=True)
 
@@ -4737,7 +4739,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
 
                     if selected_regs:
                         for r_id in selected_regs:
-                            cursor.execute("UPDATE students SET class=?, section=? WHERE reg_id=?", (next_class, next_sec, r_id))
+                            cursor.execute("UPDATE students SET class=%s, section=%s WHERE reg_id=%s", (next_class, next_sec, r_id))
                         conn.commit()
                         st.success(tr(f"{len(selected_regs)} طلباء کو کامیابی سے {next_class} ({next_sec}) میں پرموٹ کر دیا گیا! (باقی طلباء اسی کلاس میں موجود رہیں گے)", f"Successfully promoted {len(selected_regs)} students to {next_class} ({next_sec})! (Unselected students remain in the current class)"))
                         st.rerun()
@@ -4755,7 +4757,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
                     if selected_regs:
                         leave_val = "Graduated" if "Graduated" in leave_reason or "مکمل" in leave_reason else ("Left" if "Left" in leave_reason or "چھوڑ" in leave_reason else "Expelled")
                         for r_id in selected_regs:
-                            cursor.execute("UPDATE students SET status=? WHERE reg_id=?", (leave_val, r_id))
+                            cursor.execute("UPDATE students SET status=%s WHERE reg_id=%s", (leave_val, r_id))
                         conn.commit()
                         st.success(tr(f"{len(selected_regs)} طلباء کا سٹیٹس کامیابی سے '{leave_reason}' کر دیا گیا ہے۔ یہ طلباء اب ایکٹو ریکارڈ سے ہٹا دیے گئے ہیں۔", f"Successfully updated status of {len(selected_regs)} students to '{leave_reason}'. They are now removed from active records."))
                         st.rerun()
@@ -4791,7 +4793,7 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
             obj_sec_lbl = "OBJECTIVE SECTION (MCQs)"
             subj_sec_lbl = "SUBJECTIVE SECTION"
         else:
-            font_css = "<style>@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');</style>"
+            font_css = "<style>@import url('https://fonts.googleapis.com/css2%sfamily=Noto+Nastaliq+Urdu:wght@400;700&display=swap');</style>"
             f_family = "'Jameel Noori Nastaliq', 'Noto Nastaliq Urdu', 'Nafees Web Naskh', Arial, sans-serif"
             sheet_lbl = "امتحانی جوابی کاپی"
             inv_sig_lbl = "دستخط نگرانِ امتحان"
@@ -4926,8 +4928,8 @@ elif core_choice in ["ٹرانسپورٹ (GPS)", "Transport"]:
                 if v_id and d_name:
                     try:
                         gps_id = f"GPS_{v_id.replace(' ', '')}"
-                        cursor.execute("INSERT INTO transport VALUES (?, ?, ?, ?, ?, ?, ?)", (v_id, v_type, d_name, d_phone, v_route, v_fare, gps_id))
-                        cursor.execute("INSERT INTO live_locations VALUES (?, 31.821, 72.542, ?, 0)", (gps_id, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                        cursor.execute("INSERT INTO transport VALUES (%s, %s, %s, %s, %s, %s, %s)", (v_id, v_type, d_name, d_phone, v_route, v_fare, gps_id))
+                        cursor.execute("INSERT INTO live_locations VALUES (%s, 31.821, 72.542, %s, 0)", (gps_id, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
                         conn.commit()
                         st.success(tr("گاڑی اور GPS سسٹم کامیابی سے شامل ہو گئے!", "Vehicle & GPS initialized successfully!"))
                         st.rerun()
@@ -4961,8 +4963,8 @@ elif core_choice in ["ٹرانسپورٹ (GPS)", "Transport"]:
                     r_id = s_name.split("Reg: ")[1].replace(")", "")
                     veh_id = sel_v.split(" - ")[0]
                     
-                    cursor.execute("DELETE FROM transport_members WHERE reg_id=?", (r_id,))
-                    cursor.execute("INSERT INTO transport_members VALUES (?, ?)", (r_id, veh_id))
+                    cursor.execute("DELETE FROM transport_members WHERE reg_id=%s", (r_id,))
+                    cursor.execute("INSERT INTO transport_members VALUES (%s, %s)", (r_id, veh_id))
                     
                     extra_fare = v_df[v_df['vehicle_id'] == veh_id].iloc[0]['fare']
                     cursor.execute(f"UPDATE students SET monthly_fee = monthly_fee + {extra_fare} WHERE reg_id='{r_id}'")
@@ -4988,7 +4990,7 @@ elif core_choice in ["ٹرانسپورٹ (GPS)", "Transport"]:
                 new_lat = l['lat'] + random.uniform(-0.002, 0.002)
                 new_lon = l['lon'] + random.uniform(-0.002, 0.002)
                 t_now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                cursor.execute("UPDATE live_locations SET lat=?, lon=?, last_updated=? WHERE device_id=?", (new_lat, new_lon, t_now, l['device_id']))
+                cursor.execute("UPDATE live_locations SET lat=%s, lon=%s, last_updated=%s WHERE device_id=%s", (new_lat, new_lon, t_now, l['device_id']))
             conn.commit()
             st.rerun()
 
@@ -5157,7 +5159,7 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
             if cat_index == 0:
                 try:
                     date_str_sql = msg_date.strftime("%Y-%m-%d")
-                    query_lp = "SELECT subject, topic FROM lesson_plan WHERE date=? AND class=? AND status IN ('Completed', 'مکمل ہو گیا')"
+                    query_lp = "SELECT subject, topic FROM lesson_plan WHERE date=%s AND class=%s AND status IN ('Completed', 'مکمل ہو گیا')"
                     cursor.execute(query_lp, (date_str_sql, selected_class_wa))
                     completed_plans = cursor.fetchall()
                     if completed_plans:
@@ -5288,7 +5290,7 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
                 if clean_ph: auto_send_data.append({"phone": clean_ph, "name": s_name_msg, "message": msg_text})
 
                 encoded_msg = urllib.parse.quote(msg_text)
-                wa_link = f"https://api.whatsapp.com/send?phone={clean_ph}&text={encoded_msg}" if clean_ph else "#"
+                wa_link = f"https://api.whatsapp.com/send%sphone={clean_ph}&text={encoded_msg}" if clean_ph else "#"
                 
                 with st.expander(disp_title):
                     c_b1, c_b2 = st.columns([1, 2])
@@ -5322,7 +5324,7 @@ elif core_choice in ["واٹس ایپ نوٹیفیکیشن", "WhatsApp Alerts"]:
                         status_text.info(tr(f"میسج بھیجا جا رہا ہے: {data['name']} ({data['phone']}) ... ({current_msg}/{total_msgs})", f"Sending message to: {data['name']} ({data['phone']}) ... ({current_msg}/{total_msgs})"))
                         
                         encoded_msg = urllib.parse.quote(data['message'])
-                        wa_uri = f"whatsapp://send?phone={data['phone']}&text={encoded_msg}"
+                        wa_uri = f"whatsapp://send%sphone={data['phone']}&text={encoded_msg}"
                         
                         webbrowser.open(wa_uri)
                         time.sleep(8) 
@@ -5577,7 +5579,7 @@ elif core_choice in ["ڈسپلن اور میرٹ", "Discipline & Merit"]:
                 cat_index = display_opts.index(category)
                 db_category = cat_opts_en[cat_index]
                 
-                cursor.execute("INSERT INTO discipline (date, reg_id, record_type, category, points, remarks, reported_by) VALUES (?, ?, ?, ?, ?, ?, ?)", (d_date.strftime("%Y-%m-%d"), stu_reg, rec_type.split(" ")[1], db_category, points, remarks, reported_by))
+                cursor.execute("INSERT INTO discipline (date, reg_id, record_type, category, points, remarks, reported_by) VALUES (%s, %s, %s, %s, %s, %s, %s)", (d_date.strftime("%Y-%m-%d"), stu_reg, rec_type.split(" ")[1], db_category, points, remarks, reported_by))
                 conn.commit()
                 st.success(tr("ریکارڈ کامیابی سے محفوظ ہو گیا!", "Record saved successfully!"))
                 import time
@@ -5741,7 +5743,7 @@ elif core_choice in ["ڈسپلن اور میرٹ", "Discipline & Merit"]:
             prin_lbl = "Principal"
             sign_lbl = "Signature"
         else:
-            font_css = "<style>@import url('https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;700&display=swap');</style>"
+            font_css = "<style>@import url('https://fonts.googleapis.com/css2%sfamily=Noto+Nastaliq+Urdu:wght@400;700&display=swap');</style>"
             f_family = "'Jameel Noori Nastaliq', 'Noto Nastaliq Urdu', 'Nafees Web Naskh', Arial, sans-serif"
             cert_of_exc = "اعزازی سند (Certificate of Excellence)"
             proudly_presented = "یہ سند فخر کے ساتھ پیش کی جاتی ہے بطرف:"
@@ -5887,7 +5889,7 @@ elif core_choice in ["نوٹس بورڈ", "Notice Board"]:
                 
                 if st.form_submit_button(tr("نوٹس شائع کریں", "Publish Notice")):
                     if n_title and n_det:
-                        cursor.execute("INSERT INTO notices (date, audience, title, details) VALUES (?, ?, ?, ?)", (today_date, n_aud, n_title, n_det))
+                        cursor.execute("INSERT INTO notices (date, audience, title, details) VALUES (%s, %s, %s, %s)", (today_date, n_aud, n_title, n_det))
                         conn.commit()
                         st.success(tr("نوٹس کامیابی سے شائع ہو گیا!", "Notice Published Successfully!"))
                     else:
@@ -6030,7 +6032,7 @@ elif core_choice == "ID Card Maker":
                     extra_val = desig_val
                     qr_data = f"Staff ID: {r_id}"
                 
-                qr_url = f"https://api.qrserver.com/v1/create-qr-code/?size=50x50&data={urllib.parse.quote(qr_data)}"
+                qr_url = f"https://api.qrserver.com/v1/create-qr-code/%ssize=50x50&data={urllib.parse.quote(qr_data)}"
                 
                 prop_text = tr(f"یہ کارڈ {school_name} کی ملکیت ہے۔ ملنے پر سکول آفس میں جمع کروائیں۔", f"Property of {school_name}. If found, return to school office.")
                 card_logo_html = f'<img src="{logo_src_b64}" style="width: 25px; height: 25px; object-fit: contain; background: white; border-radius: 50%; padding: 2px;">' if logo_src_b64 else ''
@@ -6698,13 +6700,13 @@ elif core_choice in ["پیرنٹ پورٹل", "Parent Portal"]:
             except: pass
             
             with st.form("leave_req_form", clear_on_submit=True):
-                l_date = st.date_input(tr("کس تاریخ کی چھٹی چاہیے؟", "Date for leave?"), datetime.date.today())
+                l_date = st.date_input(tr("کس تاریخ کی چھٹی چاہیے؟", "Date for leave%s"), datetime.date.today())
                 l_reason = st.text_area(tr("چھٹی کی وجہ بیان کریں (بیماری، ضروری کام وغیرہ) *", "Reason for leave (Illness, urgent work etc) *"))
                 
                 if st.form_submit_button(tr("درخواست بھیجیں (Submit Application)", "Submit Application"), type="primary"):
                     if l_reason.strip():
                         def_remark = "انتظار فرمائیں..." if st.session_state.ui_lang == "اردو" else "Please wait..."
-                        cursor.execute("INSERT INTO leave_requests (reg_id, date, reason, admin_remarks) VALUES (?, ?, ?, ?)", (s_reg, l_date.strftime("%Y-%m-%d"), l_reason, def_remark))
+                        cursor.execute("INSERT INTO leave_requests (reg_id, date, reason, admin_remarks) VALUES (%s, %s, %s, %s)", (s_reg, l_date.strftime("%Y-%m-%d"), l_reason, def_remark))
                         conn.commit()
                         st.success(tr("✅ آپ کی چھٹی کی درخواست پرنسپل آفس کو کامیابی سے بھیج دی گئی ہے!", "✅ Your leave request has been successfully sent to the Principal's office!"))
                     else:
@@ -6765,7 +6767,7 @@ elif core_choice in ["پیرنٹ پورٹل", "Parent Portal"]:
                 
                 if st.form_submit_button(tr("ارسال کریں (Submit)", "Submit"), type="primary"):
                     if c_sub.strip() and c_det.strip():
-                        cursor.execute("INSERT INTO complaints (date, sender_name, sender_type, reg_id, subject, details, admin_reply) VALUES (?, ?, ?, ?, ?, ?, ?)", (datetime.date.today().strftime("%Y-%m-%d"), s_name, "Parent", s_reg, c_sub, c_det, tr('انتظار فرمائیں...', 'Please wait...')))
+                        cursor.execute("INSERT INTO complaints (date, sender_name, sender_type, reg_id, subject, details, admin_reply) VALUES (%s, %s, %s, %s, %s, %s, %s)", (datetime.date.today().strftime("%Y-%m-%d"), s_name, "Parent", s_reg, c_sub, c_det, tr('انتظار فرمائیں...', 'Please wait...')))
                         conn.commit()
                         st.success(tr("آپ کی بات پرنسپل تک پہنچا دی گئی ہے۔ شکریہ!", "Your message has been sent to the Principal. Thank you!"))
                     else:
@@ -6809,7 +6811,7 @@ elif core_choice in ["لائبریری", "Library"]:
                 if st.form_submit_button(tr("کتاب محفوظ کریں", "Save Book"), type="primary"):
                     if b_id and b_title:
                         try:
-                            cursor.execute("INSERT INTO books VALUES (?, ?, ?, ?, ?, ?)", (b_id, b_title, b_author, b_cat, b_qty, b_qty))
+                            cursor.execute("INSERT INTO books VALUES (%s, %s, %s, %s, %s, %s)", (b_id, b_title, b_author, b_cat, b_qty, b_qty))
                             conn.commit()
                             st.success(tr("کتاب کامیابی سے شامل ہو گئی!", "Book added successfully!"))
                             import time
@@ -6829,7 +6831,7 @@ elif core_choice in ["لائبریری", "Library"]:
             st.info(tr("لائبریری میں کوئی کتاب موجود نہیں۔", "No books in library."))
 
     elif sub_choice in ["Issue / Return Books", "کتاب جاری / واپس کریں"]:
-        action_type = st.radio(tr("آپ کیا کرنا چاہتے ہیں؟", "What do you want to do?"), [tr("کتاب جاری کریں (Issue Book)", "Issue Book"), tr("کتاب واپس لیں (Return Book)", "Return Book")], horizontal=True)
+        action_type = st.radio(tr("آپ کیا کرنا چاہتے ہیں؟", "What do you want to do%s"), [tr("کتاب جاری کریں (Issue Book)", "Issue Book"), tr("کتاب واپس لیں (Return Book)", "Return Book")], horizontal=True)
         st.write("---")
         
         if "Issue" in action_type or "جاری" in action_type:
@@ -6841,7 +6843,7 @@ elif core_choice in ["لائبریری", "Library"]:
                 
                 c_is1, c_is2 = st.columns(2)
                 iss_book = c_is1.selectbox(tr("کتاب منتخب کریں", "Select Book"), b_opts, key="iss_book_sel")
-                iss_type = c_is2.radio(tr("کس کو جاری کرنی ہے؟", "Issue to?"), ["Student", "Staff"], horizontal=True, key="iss_type_rad")
+                iss_type = c_is2.radio(tr("کس کو جاری کرنی ہے؟", "Issue to%s"), ["Student", "Staff"], horizontal=True, key="iss_type_rad")
                 
                 c_is3, c_is4 = st.columns(2)
                 iss_reg = ""
@@ -6869,7 +6871,7 @@ elif core_choice in ["لائبریری", "Library"]:
                     if iss_reg.strip():
                         b_id_sel = iss_book.split(" (ID: ")[1].split(")")[0]
                         issue_dt = datetime.date.today().strftime("%Y-%m-%d")
-                        cursor.execute("INSERT INTO book_issue (book_id, issued_to_type, reg_id, issue_date, due_date) VALUES (?, ?, ?, ?, ?)", (b_id_sel, iss_type, iss_reg, issue_dt, due_d.strftime("%Y-%m-%d")))
+                        cursor.execute("INSERT INTO book_issue (book_id, issued_to_type, reg_id, issue_date, due_date) VALUES (%s, %s, %s, %s, %s)", (b_id_sel, iss_type, iss_reg, issue_dt, due_d.strftime("%Y-%m-%d")))
                         cursor.execute(f"UPDATE books SET available_qty = available_qty - 1 WHERE book_id='{b_id_sel}'")
                         conn.commit()
                         st.success(tr("کتاب کامیابی سے جاری کر دی گئی!", "Book issued successfully!"))
@@ -6908,7 +6910,7 @@ elif core_choice in ["لائبریری", "Library"]:
                     cursor.execute(f"UPDATE books SET available_qty = available_qty + 1 WHERE book_id='{b_id_ret}'")
                     if fine_amt > 0:
                         v_num = pd.read_sql("SELECT COUNT(*) FROM accounts", conn).iloc[0, 0] + 1001
-                        cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (?, 'آمدنی', ?, ?, 'Library Fine', ?)", (today_obj.strftime("%Y-%m-%d"), f"Late Fine Book ID: {b_id_ret}", fine_amt, f"V-{v_num}"))
+                        cursor.execute("INSERT INTO accounts (date, type, description, amount, head_name, voucher_no) VALUES (%s, 'آمدنی', %s, %s, 'Library Fine', %s)", (today_obj.strftime("%Y-%m-%d"), f"Late Fine Book ID: {b_id_ret}", fine_amt, f"V-{v_num}"))
                     conn.commit()
                     st.success(tr("کتاب کی واپسی درج ہو گئی اور سٹاک اپڈیٹ ہو گیا!", "Book returned successfully and stock updated!"))
                     import time
@@ -6938,7 +6940,7 @@ elif core_choice in ["گیٹ سیکیورٹی", "Gate Security"]:
             c1, c2, c3 = st.columns(3)
             v_name = c1.text_input(tr("مہمان کا نام (Visitor Name) *", "Visitor Name *"))
             v_phone = c2.text_input(tr("موبائل نمبر / شناختی کارڈ", "Phone / CNIC"))
-            v_meet = c3.selectbox(tr("کس سے ملنا ہے؟", "Whom to meet?"), ["Principal", "Admin / Operator", "Teacher", "Student", "Accounts", "Other"])
+            v_meet = c3.selectbox(tr("کس سے ملنا ہے؟", "Whom to meet%s"), ["Principal", "Admin / Operator", "Teacher", "Student", "Accounts", "Other"])
             
             v_purp = st.text_input(tr("آنے کا مقصد (Purpose of Visit)", "Purpose of Visit"))
             
@@ -6946,7 +6948,7 @@ elif core_choice in ["گیٹ سیکیورٹی", "Gate Security"]:
                 if v_name.strip():
                     time_in = datetime.datetime.now().strftime("%I:%M %p")
                     date_today = datetime.date.today().strftime("%Y-%m-%d")
-                    cursor.execute("INSERT INTO visitors (date, time_in, time_out, name, phone, purpose, to_meet, status) VALUES (?, ?, '-', ?, ?, ?, ?, 'Inside')", (date_today, time_in, v_name, v_phone, v_purp, v_meet))
+                    cursor.execute("INSERT INTO visitors (date, time_in, time_out, name, phone, purpose, to_meet, status) VALUES (%s, %s, '-', %s, %s, %s, %s, 'Inside')", (date_today, time_in, v_name, v_phone, v_purp, v_meet))
                     conn.commit()
                     
                     pass_id = pd.read_sql("SELECT MAX(id) FROM visitors", conn).iloc[0, 0]
@@ -7078,7 +7080,7 @@ elif core_choice in ["انوینٹری (سٹاک)", "Inventory"]:
             
             if st.form_submit_button(tr("سٹاک میں شامل کریں", "Add to Stock"), type="primary"):
                 if i_name.strip():
-                    cursor.execute("INSERT INTO inventory (item_name, category, total_qty, used_qty) VALUES (?, ?, ?, 0)", (i_name, i_cat, i_qty))
+                    cursor.execute("INSERT INTO inventory (item_name, category, total_qty, used_qty) VALUES (%s, %s, %s, 0)", (i_name, i_cat, i_qty))
                     conn.commit()
                     st.success(tr(f"{i_name} کی {i_qty} مقدار سٹاک میں شامل ہو گئی ہے۔", f"{i_qty} quantity of {i_name} added to stock."))
                     st.rerun()
@@ -7101,7 +7103,7 @@ elif core_choice in ["انوینٹری (سٹاک)", "Inventory"]:
             
             inv_opts = [f"{r['Item Name']} (Available: {r['Available']})" if st.session_state.ui_lang=="English" else f"{r['آئٹم کا نام']} (دستیاب: {r['دستیاب باقی']})" for _, r in inv_df.iterrows()]
             sel_item = c_use1.selectbox(tr("وہ آئٹم منتخب کریں جو استعمال ہوئی ہو", "Select Item to Consume"), inv_opts)
-            use_qty = c_use2.number_input(tr("کتنی مقدار استعمال ہوئی؟", "How much quantity used?"), min_value=1, value=1)
+            use_qty = c_use2.number_input(tr("کتنی مقدار استعمال ہوئی؟", "How much quantity used%s"), min_value=1, value=1)
             
             if st.button(tr("استعمال شدہ ظاہر کریں", "Mark as Used"), type="primary"):
                 sel_id = inv_df.iloc[inv_opts.index(sel_item)]['ID']
@@ -7173,7 +7175,7 @@ elif core_choice in ["ہیلپ ڈیسک (شکایات)", "Helpdesk"]:
                         st.write("")
                         admin_rep = st.text_input(tr("اپنا جواب لکھیں:", "Write your reply:"), key=f"rep_{r['id']}")
                         if st.button("✅ " + tr("جواب بھیجیں اور حل شدہ کریں (Mark Resolved)", "Reply & Mark Resolved"), key=f"res_{r['id']}", type="primary"):
-                            cursor.execute("UPDATE complaints SET status='Resolved', admin_reply=? WHERE id=?", (admin_rep, r['id']))
+                            cursor.execute("UPDATE complaints SET status='Resolved', admin_reply=%s WHERE id=%s", (admin_rep, r['id']))
                             conn.commit()
                             st.success(tr("جواب بھیج دیا گیا!", "Reply Sent!"))
                             import time
