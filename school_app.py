@@ -3728,21 +3728,11 @@ if st.button("سیشن تبدیل کریں"):
                     with c_card2:
                         if not is_active:
                             if st.button("Activate", key=f"act_{s_name}"):
-                                target_db = 'school_system.db' if s_name == '2026-27' else f'school_system_{s_name}.db'
-
-                                with open(SESSION_TRACKER_FILE, "w") as f:
-                                    f.write(target_db)
-
-                                try:
-                                    t_conn = sqlite3.connect(target_db)
-                                    t_conn.execute("UPDATE academic_sessions SET status='INACTIVE'")
-                                    t_conn.execute("UPDATE academic_sessions SET status='ACTIVE' WHERE session_name=%s", (s_name,))
-                                    t_conn.commit()
-                                    t_conn.close()
-                                except: pass
-
-                                st.success(f"Session {s_name} is now ACTIVE!")
-                                st.rerun()
+                                cursor.execute("UPDATE academic_sessions SET status='INACTIVE'")
+                            cursor.execute("UPDATE academic_sessions SET status='ACTIVE' WHERE session_name=%s", (s_name,))
+                            conn.commit()
+                            st.success(f"Session {s_name} is now ACTIVE!")
+                            st.rerun()
             else:
                 st.info("No sessions found.")
 
@@ -4247,12 +4237,16 @@ elif not available_lp_subs:
                 lp_status = st.radio(tr("سٹیٹس", "Status"), [tr("جاری ہے", "In Progress"), tr("مکمل ہو گیا", "Completed")], index=0, horizontal=True)
 
                 if st.form_submit_button(tr("ڈائری محفوظ کریں", "Save Lesson Plan")):
-                    if lp_topic and "No Subject" not in lp_sub and "تمام مضامین" not in lp_sub:
-                        cursor.execute("INSERT INTO lesson_plan (date, class, section, subject, teacher_id, topic, status, plan_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", 
-                                       (final_date_str, lp_class, lp_sec, lp_sub, lp_teacher, lp_topic, lp_status, lp_type))
-                        conn.commit()
-                        st.success(tr("لیسن پلان محفوظ ہو گیا!", "Lesson plan saved!"))
-                        st.rerun()
+                if lp_topic and "No Subject" not in lp_sub and "تمام مضامین" not in lp_sub:
+                    cursor.execute("INSERT INTO lesson_plan (date, class, section, subject, teacher_id, topic, status, plan_type) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)", 
+                                   (final_date_str, lp_class, lp_sec, lp_sub, lp_teacher, lp_topic, lp_status, lp_type))
+                    conn.commit()
+                    st.success(tr("لیسن پلان محفوظ ہو گیا!", "Lesson plan saved!"))
+                    st.rerun()
+            elif "No Subject" in lp_sub:
+                st.error(tr("پہلے اس کلاس کے لیے مضامین شامل کریں!", "Please add subjects for this class first!"))
+            elif "تمام مضامین" in lp_sub:
+                st.warning(tr("مزید مضامین باقی نہیں ہیں۔", "No more subjects left."))
 elif "No Subject" in lp_sub:
                         st.error(tr("پہلے اس کلاس کے لیے مضامین شامل کریں!", "Please add subjects for this class first!"))
 elif "تمام مضامین" in lp_sub:
@@ -4541,23 +4535,21 @@ elif sub_choice in ["Result Card", "رزلٹ کارڈ"]:
             students_to_print = pd.DataFrame()
 
             if "Single" in gen_mode or "سنگل" in gen_mode:
-                rc_reg = st.text_input(tr("طالب علم کا رول نمبر لکھیں", "Enter Student Reg No"))
-                if rc_reg:
-                    students_to_print = pd.read_sql(f"SELECT * FROM students WHERE reg_id='{rc_reg}'", conn)
-
-elif "Class" in gen_mode or "کلاس" in gen_mode:
-                c_rc1, c_rc2 = st.columns(2)
-                db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
-                if not db_cls: db_cls = classes_list
-                rc_cls = c_rc1.selectbox(tr("کلاس منتخب کریں", "Select Class"), db_cls)
-                db_sec = pd.read_sql(f"SELECT section_name FROM sys_sections WHERE class_name='{rc_cls}'", conn)['section_name'].tolist()
-                if not db_sec: db_sec = ["A"]
-                rc_sec = c_rc2.selectbox(tr("سیکشن", "Section"), db_sec)
-                students_to_print = pd.read_sql(f"SELECT * FROM students WHERE class='{rc_cls}' AND section='{rc_sec}' AND status='Active'", conn)
-
-elif "School" in gen_mode or "سکول" in gen_mode:
-                students_to_print = pd.read_sql("SELECT * FROM students WHERE status='Active'", conn)
-                st.info(tr("یہ پورے سکول کے تمام طلباء کے رزلٹ کارڈ ایک ساتھ بنائے گا۔ اس میں تھوڑا وقت لگ سکتا ہے۔", "This will generate result cards for ALL students in the school. It may take some time."))
+            rc_reg = st.text_input(tr("طالب علم کا رول نمبر لکھیں", "Enter Student Reg No"))
+            if rc_reg:
+                students_to_print = pd.read_sql(f"SELECT * FROM students WHERE reg_id='{rc_reg}'", conn)
+        elif "Class" in gen_mode or "کلاس" in gen_mode:
+            c_rc1, c_rc2 = st.columns(2)
+            db_cls = pd.read_sql("SELECT class_name FROM sys_classes", conn)['class_name'].tolist()
+            if not db_cls: db_cls = classes_list
+            rc_cls = c_rc1.selectbox(tr("کلاس منتخب کریں", "Select Class"), db_cls)
+            db_sec = pd.read_sql(f"SELECT section_name FROM sys_sections WHERE class_name='{rc_cls}'", conn)['section_name'].tolist()
+            if not db_sec: db_sec = ["A"]
+            rc_sec = c_rc2.selectbox(tr("سیکشن", "Section"), db_sec)
+            students_to_print = pd.read_sql(f"SELECT * FROM students WHERE class='{rc_cls}' AND section='{rc_sec}' AND status='Active'", conn)
+        elif "School" in gen_mode or "سکول" in gen_mode:
+            students_to_print = pd.read_sql("SELECT * FROM students WHERE status='Active'", conn)
+            st.info(tr("یہ پورے سکول کے تمام طلباء کے رزلٹ کارڈ ایک ساتھ بنائے گا۔ اس میں تھوڑا وقت لگ سکتا ہے۔", "This will generate result cards for ALL students in the school. It may take some time."))
 
             btn_result = st.button(tr("رزلٹ کارڈز جنریٹ کریں", "Generate Result Cards"), type="primary", use_container_width=True)
 
