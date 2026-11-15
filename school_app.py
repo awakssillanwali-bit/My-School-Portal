@@ -356,6 +356,8 @@ def permission_authorizer(action, arg1, arg2, db_name, trigger_name):
 
 cursor.execute("SELECT COUNT(*) FROM users")
 if cursor.fetchone()[0] == 0:
+    cursor.execute("SELECT username FROM users WHERE username='admin'")
+if not cursor.fetchone():
     cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES ('admin', 'admin123', 'Admin', 'N/A')")
     conn.commit()
 
