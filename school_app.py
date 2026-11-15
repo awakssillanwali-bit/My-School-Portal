@@ -358,7 +358,7 @@ cursor.execute("SELECT COUNT(*) FROM users")
 if cursor.fetchone()[0] == 0:
     cursor.execute("SELECT username FROM users WHERE username='admin'")
 if not cursor.fetchone():
-    cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES ('admin', 'admin123', 'Admin', 'N/A')")
+    cursor.execute("INSERT INTO users (username, password, role, ref_id) VALUES ('admin', 'admin123', 'Admin', 'N/A') ON CONFLICT (username) DO NOTHING")
     conn.commit()
 
 if 'logged_in' not in st.session_state:
