@@ -4022,7 +4022,7 @@ elif sub_choice in ["Time Table", "ٹائم ٹیبل"]:
 elif not available_subs:
                  available_subs = all_subs
 
-            available_teachers = pd.read_sql("SELECT name FROM staff", conn)['name'].tolist()
+        available_teachers = pd.read_sql("SELECT name FROM staff", conn)['name'].tolist()
             if not available_teachers: available_teachers = ["No Teacher Found"]
 
             if not available_periods:
