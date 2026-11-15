@@ -1624,7 +1624,7 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                         
                         conn.commit()
                         st.success(tr("✅ سٹاف کا ریکارڈ اور لاگ ان اکاؤنٹ کامیابی سے محفوظ ہو گیا!", "Staff record and login account saved successfully!"))
-                    except sqlite3.IntegrityError:
+                    except psycopg2.IntegrityError:
                         st.error(tr("⚠️ یہ یوزر نیم پہلے سے موجود ہے۔ برائے مہربانی لاگ ان کے لیے کوئی مختلف نام منتخب کریں۔", "Username already exists. Please choose a different one."))
                     except Exception as e: 
                         st.error(f"Error saving staff: {e}")
@@ -3638,30 +3638,24 @@ elif core_choice in ["تعلیمی نظام", "Academics"]:
             st.markdown("### ➕ Register Session")
             with st.form("new_session_form"):
                 new_sess_name = st.text_input("Session Name", placeholder="e.g. 2027-28")
-                if st.form_submit_button("+ Add Session Year", type="primary"):
-                    if new_sess_name.strip():
-                        new_session = new_sess_name.strip()
-                        cursor.execute("SELECT * FROM academic_sessions WHERE session_name=%s", (new_session,))
-                        if cursor.fetchone():
-                            st.error("یہ سیشن پہلے سے موجود ہے!")
-                        else:
-                            cursor.execute("INSERT INTO academic_sessions VALUES (%s, 'INACTIVE')", (new_session,))
-                            conn.commit()
-
-                            new_db_file = f'school_system_{new_session}.db'
-                            shutil.copy2(DB_FILE, new_db_file)
-
-                            new_conn = sqlite3.connect(new_db_file)
-                            new_cursor = new_conn.cursor()
-                            tables_to_clear = ['fees', 'accounts', 'attendance', 'salary_records', 'lesson_plan', 'exam_marks', 'timetable', 'notices']
-                            for table in tables_to_clear:
-                                try: new_cursor.execute(f"DELETE FROM {table}")
-                                except: pass
-                            new_conn.commit()
-                            new_conn.close()
-
-                            st.success(f"سیشن {new_session} کامیابی سے بن گیا!")
-                            st.rerun()
+                # نیا سیشن سلیکٹ کرنے اور کلاؤڈ ڈیٹا بیس میں ایکٹیو کرنے کا درست طریقہ
+if st.button("سیشن تبدیل کریں"):
+    if new_session:
+        # 1. تمام سیشنز کو INACTIVE کر دیں
+        cursor.execute("UPDATE academic_sessions SET status = 'INACTIVE'")
+        
+        # 2. چیک کریں کہ آیا نیا سیشن ڈیٹا بیس میں پہلے سے موجود ہے یا نہیں
+        cursor.execute("SELECT session_name FROM academic_sessions WHERE session_name = %s", (new_session,))
+        if cursor.fetchone():
+            # اگر موجود ہے تو اسے ACTIVE کر دیں
+            cursor.execute("UPDATE academic_sessions SET status = 'ACTIVE' WHERE session_name = %s", (new_session,))
+        else:
+            # اگر نیا سیشن ہے تو اسے درج کر کے ACTIVE کریں
+            cursor.execute("INSERT INTO academic_sessions (session_name, status) VALUES (%s, 'ACTIVE')", (new_session,))
+        
+        conn.commit()
+        st.success(f"سیشن کامیابی کے ساتھ '{new_session}' پر منتقل ہو گیا ہے!")
+        st.rerun()
                     else:
                         st.warning("Please enter a valid session name.")
 
