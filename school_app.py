@@ -427,8 +427,8 @@ for en, ur, icon in zip(all_menu_en, all_menu_ur, all_menu_icons):
         menu_icons.append(icon)
         
 sub_menus_map = {
-    "Students Mgt": {"ur": ["نیا داخلہ", "ریکارڈ ایڈٹ کریں", "🔍 تلاش", "🖨️ پرنٹ پروفائل", "🎓 سرٹیفکیٹس", "📥 بلک امپورٹ"], "en": ["New Admission", "Edit Record", "Search", "Print Profile", "Certificates", "Bulk Import"]},
-    "Staff Mgt": {"ur": ["سٹاف لسٹ", "نیا سٹاف", "سٹاف ایڈٹ کریں", "سٹاف تلاش کریں", "پروفائل پرنٹ کریں", "یوزر اکاؤنٹس", "🎓 سرٹیفکیٹس", "لیٹرز اور دستاویزات"], "en": ["Staff List", "New Staff", "Edit Staff", "Search Staff", "Print Profile", "User Accounts", "Certificates", "Letters & Documents"]},
+    "Students Mgt": {"ur": ["نیا داخلہ", "ریکارڈ ایڈٹ کریں", "🔍 تلاش", "🗑️ طالب علم حذف کریں", "🖨️ پرنٹ پروفائل", "🎓 سرٹیفکیٹس", "📥 بلک امپورٹ"], "en": ["New Admission", "Edit Record", "Search", "Delete Student", "Print Profile", "Certificates", "Bulk Import"]},
+    "Staff Mgt": {"ur": ["سٹاف لسٹ", "نیا سٹاف", "سٹاف ایڈٹ کریں", "سٹاف تلاش کریں", "🗑️ سٹاف حذف کریں", "پروفائل پرنٹ کریں", "یوزر اکاؤنٹس", "🎓 سرٹیفکیٹس", "لیٹرز اور دستاویزات"], "en": ["Staff List", "New Staff", "Edit Staff", "Search Staff", "Delete Staff", "Print Profile", "User Accounts", "Certificates", "Letters & Documents"]},
     "Attendance": {"ur": ["طالب علم کی حاضری", "سٹاف کی حاضری", "سمارٹ کیو-آر حاضری", "حاضری رپورٹ و پرنٹ", "چھٹی کی درخواستیں"], "en": ["Student Attendance", "Staff Attendance", "Smart QR Attendance", "Attendance Report & Print", "Leave Requests"]},
     "Fee & Salary": {"ur": ["📄 چالان بنائیں", "💰 فیس وصولی", "🔴 بقایا اور ایڈوانس", "🎁 ڈسکاؤنٹ", "📊 سٹاف سیلری", "🖨️ سیلری سلپس"], "en": ["Generate Fee Challans", "Collect Fees", "Arrears & Advance", "Discount Mgt", "Pay Salary", "Salary Slips"]},
     "Accounts": {"ur": ["روزانہ کی رپورٹ", "ماہانہ رپورٹ", "لیجر / کھاتہ"], "en": ["Daily Report", "Monthly Report", "Ledger"]},
@@ -1240,6 +1240,43 @@ elif core_choice in ["Students Mgt", "طلباء مینجمنٹ"]:
         else:
             st.info(tr("دی گئی معلومات کے مطابق کوئی طالب علم نہیں ملا۔", "No student found matching the provided criteria."))
                 
+    elif sub_choice in ["Delete Student", "🗑️ طالب علم حذف کریں"]:
+        st.markdown(f"### 🗑️ {tr('طالب علم کا ریکارڈ حذف کریں', 'Delete Student Record')}")
+        st.warning(tr("یہ عمل مستقل ہے۔ حذف کرنے سے پہلے رجسٹریشن نمبر اور نام کی تصدیق کریں۔", "This action is permanent. Verify the registration number and name before deleting."))
+        try:
+            delete_students_df = pd.read_sql("SELECT reg_id, name, class, section FROM students ORDER BY class, reg_id", conn)
+        except Exception as e:
+            delete_students_df = pd.DataFrame()
+            st.error(f"Student list error: {e}")
+        if delete_students_df.empty:
+            st.info(tr("حذف کرنے کے لیے کوئی طالب علم موجود نہیں۔", "No students available to delete."))
+        else:
+            delete_students_df["display"] = delete_students_df.apply(lambda r: f"{r['reg_id']} — {r['name']} ({r['class']} / {r['section']})", axis=1)
+            selected_student_label = st.selectbox(tr("طالب علم منتخب کریں", "Select Student"), delete_students_df["display"].tolist(), key="delete_student_select")
+            selected_reg_id = str(delete_students_df.loc[delete_students_df["display"] == selected_student_label, "reg_id"].iloc[0])
+            confirm_student_delete = st.checkbox(tr("میں تصدیق کرتا/کرتی ہوں کہ یہی طالب علم حذف کرنا ہے۔", "I confirm that this is the student to delete."), key="confirm_delete_student")
+            if st.button(tr("🗑️ مستقل حذف کریں", "🗑️ Delete Permanently"), type="primary", disabled=not confirm_student_delete, key="delete_student_button"):
+                try:
+                    cursor.execute("BEGIN")
+                    cursor.execute("DELETE FROM users WHERE username=%s", (f"parent_{selected_reg_id}",))
+                    cursor.execute("DELETE FROM attendance WHERE person_id=%s AND type IN ('Student', 'طالب علم')", (selected_reg_id,))
+                    try:
+                        cursor.execute("DELETE FROM leave_requests WHERE reg_id=%s", (selected_reg_id,))
+                    except Exception:
+                        # Optional table may not exist in older installations.
+                        pass
+                    cursor.execute("DELETE FROM students WHERE reg_id=%s", (selected_reg_id,))
+                    deleted = cursor.rowcount
+                    conn.commit()
+                    if deleted:
+                        st.success(tr("طالب علم کا ریکارڈ حذف کر دیا گیا۔", "Student record deleted successfully."))
+                        st.rerun()
+                    else:
+                        st.warning(tr("یہ طالب علم موجود نہیں۔", "This student no longer exists."))
+                except Exception as e:
+                    conn.rollback()
+                    st.error(f"Delete failed: {e}")
+
     elif sub_choice in ["Print Profile", "🖨️ پرنٹ پروفائل"]:
         c_pr1, c_pr2 = st.columns([2, 1])
         print_reg = c_pr1.text_input(tr("رول نمبر درج کریں:", "Enter Reg No to Print:"), key="print_profile_reg")
@@ -1816,6 +1853,37 @@ elif core_choice in ["سٹاف مینجمنٹ", "Staff Mgt"]:
                             st.error(f"🛑 Error: {db_err}")
             else:
                 st.warning(tr("اس آئی ڈی کا کوئی سٹاف موجود نہیں۔", "No staff found with this ID."))
+
+    elif sub_choice in ["Delete Staff", "🗑️ سٹاف حذف کریں"]:
+        st.markdown(f"### 🗑️ {tr('سٹاف کا ریکارڈ حذف کریں', 'Delete Staff Record')}")
+        st.warning(tr("یہ عمل مستقل ہے۔ سٹاف ID اور نام کی تصدیق کریں۔ تنخواہ کے تاریخی ریکارڈ محفوظ رہیں گے۔", "This action is permanent. Verify the staff ID and name. Historical salary records will be retained."))
+        try:
+            delete_staff_df = pd.read_sql("SELECT staff_id, name, designation FROM staff ORDER BY staff_id", conn)
+        except Exception as e:
+            delete_staff_df = pd.DataFrame()
+            st.error(f"Staff list error: {e}")
+        if delete_staff_df.empty:
+            st.info(tr("حذف کرنے کے لیے کوئی سٹاف موجود نہیں۔", "No staff members available to delete."))
+        else:
+            delete_staff_df["display"] = delete_staff_df.apply(lambda r: f"{r['staff_id']} — {r['name']} ({r['designation'] or 'Staff'})", axis=1)
+            selected_staff_label = st.selectbox(tr("سٹاف ممبر منتخب کریں", "Select Staff Member"), delete_staff_df["display"].tolist(), key="delete_staff_select")
+            selected_staff_id = str(delete_staff_df.loc[delete_staff_df["display"] == selected_staff_label, "staff_id"].iloc[0])
+            confirm_staff_delete = st.checkbox(tr("میں تصدیق کرتا/کرتی ہوں کہ یہی سٹاف ممبر حذف کرنا ہے۔", "I confirm that this is the staff member to delete."), key="confirm_delete_staff")
+            if st.button(tr("🗑️ مستقل حذف کریں", "🗑️ Delete Permanently"), type="primary", disabled=not confirm_staff_delete, key="delete_staff_button"):
+                try:
+                    cursor.execute("BEGIN")
+                    cursor.execute("DELETE FROM attendance WHERE person_id=%s AND type IN ('Staff', 'سٹاف')", (selected_staff_id,))
+                    cursor.execute("DELETE FROM staff WHERE staff_id=%s", (selected_staff_id,))
+                    deleted = cursor.rowcount
+                    conn.commit()
+                    if deleted:
+                        st.success(tr("سٹاف کا ریکارڈ حذف کر دیا گیا۔", "Staff record deleted successfully."))
+                        st.rerun()
+                    else:
+                        st.warning(tr("یہ سٹاف ممبر موجود نہیں۔", "This staff member no longer exists."))
+                except Exception as e:
+                    conn.rollback()
+                    st.error(f"Delete failed: {e}")
 
     elif sub_choice in ["Search Staff", "سٹاف تلاش کریں"]:
         s_staff_q = st.text_input(tr("سٹاف کا نام، ID، یا CNIC درج کریں:", "Enter Staff Name, ID, or CNIC:"))
@@ -2737,7 +2805,7 @@ elif core_choice in ["Attendance", "حاضری سسٹم"]:
         st.info(tr("یہاں آپ والدین کی طرف سے آن لائن بھیجی گئی چھٹی کی درخواستیں دیکھ سکتے ہیں اور انہیں منظور (Approve) یا مسترد (Reject) کر سکتے ہیں۔ منظور کرنے پر حاضری شیٹ میں خودکار 'چھٹی' لگ جائے گی۔", "Here you can view, approve, or reject leave requests sent by parents. Approving will automatically mark 'Leave' in the attendance sheet."))
         
         try:
-            cursor.execute("CREATE TABLE IF NOT EXISTS leave_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, reg_id TEXT, date TEXT, reason TEXT, status TEXT DEFAULT 'Pending')")
+            cursor.execute("CREATE TABLE IF NOT EXISTS leave_requests (id SERIAL PRIMARY KEY, reg_id TEXT, date TEXT, reason TEXT, status TEXT DEFAULT 'Pending')")
             try: cursor.execute("ALTER TABLE leave_requests ADD COLUMN admin_remarks TEXT")
             except: pass
             conn.commit()
@@ -2958,7 +3026,7 @@ elif core_choice in ["Fee & Salary", "فیس، رسیدیں، سیلری"]:
             if f_status != "All": q += f" AND f.status='{f_status}'"
             if f_search: q += f" AND (s.name LIKE '%{f_search}%' OR s.reg_id LIKE '%{f_search}%')"
             if f_month != "All": q += f" AND f.month LIKE '{f_month}%'"
-            q += " ORDER BY f.rowid DESC"
+            q += " ORDER BY f.date DESC"
             inv_df = pd.read_sql(q, conn)
             
             c_mode1, c_mode2 = st.columns([1.2, 1])
@@ -3039,7 +3107,7 @@ elif core_choice in ["Fee & Salary", "فیس، رسیدیں، سیلری"]:
                 ledg_reg = sel_stu_ledger.split("Reg: ")[1].strip()
                 
                 stu_ledg_info = pd.read_sql(f"SELECT arrears, advance_fee FROM students WHERE reg_id='{ledg_reg}'", conn).iloc[0]
-                fee_history = pd.read_sql(f"SELECT invoice_no, month, date, status, total FROM fees WHERE reg_id='{ledg_reg}' ORDER BY rowid DESC", conn)
+                fee_history = pd.read_sql(f"SELECT invoice_no, month, date, status, total FROM fees WHERE reg_id='{ledg_reg}' ORDER BY date DESC", conn)
                 
                 total_billed = pd.read_sql(f"SELECT SUM(total) FROM fees WHERE reg_id='{ledg_reg}'", conn).iloc[0,0] or 0
                 total_paid = pd.read_sql(f"SELECT SUM(total) FROM fees WHERE reg_id='{ledg_reg}' AND status='Paid'", conn).iloc[0,0] or 0
@@ -3203,7 +3271,7 @@ elif core_choice in ["Fee & Salary", "فیس، رسیدیں، سیلری"]:
                 
                 st.write("---")
                 st.markdown("#### 📜 تنخواہ اور ایڈوانس کی ہسٹری")
-                stf_history = pd.read_sql(f"SELECT date, month, remarks, amount FROM salary_records WHERE staff_id='{s_ledg_id}' ORDER BY rowid DESC", conn)
+                stf_history = pd.read_sql(f"SELECT date, month, remarks, amount FROM salary_records WHERE staff_id='{s_ledg_id}' ORDER BY date DESC", conn)
                 
                 if not stf_history.empty:
                     stf_history.columns = ['Date', 'Billing Month', 'Transaction Type', 'Amount (Rs)']
@@ -3514,7 +3582,7 @@ elif core_choice in ["اکاؤنٹس اور رپورٹس", "Accounts"]:
                 sel_stu = st.selectbox(tr("طالب علم منتخب کریں", "Select Student"), stu_opts)
                 sel_reg_id = sel_stu.split(" - ")[0]
 
-                fee_records = pd.read_sql(f"SELECT month as 'Month', total as 'Total', CASE WHEN status='Paid' THEN total ELSE 0 END as 'Paid', CASE WHEN status='Unpaid' THEN total ELSE 0 END as 'Balance', status as 'Status', date as 'Date' FROM fees WHERE reg_id='{sel_reg_id}' ORDER BY rowid DESC", conn)
+                fee_records = pd.read_sql(f"SELECT month as 'Month', total as 'Total', CASE WHEN status='Paid' THEN total ELSE 0 END as 'Paid', CASE WHEN status='Unpaid' THEN total ELSE 0 END as 'Balance', status as 'Status', date as 'Date' FROM fees WHERE reg_id='{sel_reg_id}' ORDER BY date DESC", conn)
 
                 stu_current_info = students_df[students_df['reg_id'] == sel_reg_id].iloc[0]
                 curr_arrears = stu_current_info['arrears']
@@ -3577,7 +3645,7 @@ elif core_choice in ["اکاؤنٹس اور رپورٹس", "Accounts"]:
                 </div>
                 """, unsafe_allow_html=True)
 
-                stf_history = pd.read_sql(f"SELECT date as 'Date', month as 'Month', remarks as 'Type', amount as 'Amount' FROM salary_records WHERE staff_id='{sel_staff_id}' ORDER BY rowid DESC", conn)
+                stf_history = pd.read_sql(f"SELECT date as 'Date', month as 'Month', remarks as 'Type', amount as 'Amount' FROM salary_records WHERE staff_id='{sel_staff_id}' ORDER BY date DESC", conn)
 
                 if not stf_history.empty:
                     st.markdown(f"#### 📜 {tr('تنخواہ اور ادائیگیوں کی ہسٹری', 'Payment History')}")
@@ -3742,8 +3810,8 @@ elif sub_choice in ["Classes", "کلاسز"]:
         st.write("---")
 
         cursor.execute('''CREATE TABLE IF NOT EXISTS sys_classes (class_name TEXT PRIMARY KEY)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS sys_sections (id INTEGER PRIMARY KEY AUTOINCREMENT, class_name TEXT, section_name TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS sys_subjects (id INTEGER PRIMARY KEY AUTOINCREMENT, class_name TEXT, section_name TEXT, subject_name TEXT)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS sys_sections (id SERIAL PRIMARY KEY, class_name TEXT, section_name TEXT)''')
+        cursor.execute('''CREATE TABLE IF NOT EXISTS sys_subjects (id SERIAL PRIMARY KEY, class_name TEXT, section_name TEXT, subject_name TEXT)''')
 
         for c in classes_list:
             cursor.execute("INSERT OR IGNORE INTO sys_classes (class_name) VALUES (%s)", (c,))
@@ -5504,7 +5572,7 @@ elif core_choice in ["ڈسپلن اور میرٹ", "Discipline & Merit"]:
     st.write(tr("طلباء کی کارکردگی، اخلاقیات، اور نظم و ضبط کا ریکارڈ رکھیں۔", "Track student performance, behavior, and disciplinary records."))
     
     cursor.execute('''CREATE TABLE IF NOT EXISTS discipline (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         date TEXT,
         reg_id TEXT,
         record_type TEXT,
@@ -6464,7 +6532,7 @@ elif core_choice in ["رپورٹس", "Reports"]:
                 
             where_clause = " WHERE " + " AND ".join(q_cond)
             
-            df = pd.read_sql(f"SELECT date as 'Date', voucher_no as 'Voucher No', type as 'Type', head_name as 'Head', description as 'Details', amount as 'Amount' FROM accounts {where_clause} ORDER BY date ASC, rowid ASC", conn)
+            df = pd.read_sql(f"SELECT date as 'Date', voucher_no as 'Voucher No', type as 'Type', head_name as 'Head', description as 'Details', amount as 'Amount' FROM accounts {where_clause} ORDER BY date ASC, date ASC", conn)
             
             if not df.empty:
                 t = get_translations(st.session_state.ui_lang)
@@ -6668,7 +6736,7 @@ elif core_choice in ["پیرنٹ پورٹل", "Parent Portal"]:
         with p_tab3:
             st.markdown(f"#### 🧾 {tr('فیس کے چالان اور ادائیگی کی تفصیل', 'Fee Challans & Payment Details')}")
             q_cols_fee = "month as 'مہینہ', total as 'رقم', status as 'سٹیٹس', date as 'تاریخ'" if st.session_state.ui_lang == "اردو" else "month as 'Month', total as 'Amount', status as 'Status', date as 'Date'"
-            fees = pd.read_sql(f"SELECT {q_cols_fee} FROM fees WHERE reg_id='{s_reg}' ORDER BY rowid DESC", conn)
+            fees = pd.read_sql(f"SELECT {q_cols_fee} FROM fees WHERE reg_id='{s_reg}' ORDER BY date DESC", conn)
             
             if not fees.empty:
                 st.dataframe(fees, use_container_width=True, hide_index=True)
@@ -6678,7 +6746,7 @@ elif core_choice in ["پیرنٹ پورٹل", "Parent Portal"]:
         with p_tab4:
             st.markdown(f"#### ✉️ {tr('سکول انتظامیہ کو چھٹی کی درخواست بھیجیں', 'Send Leave Application to School Admin')}")
             try:
-                cursor.execute("CREATE TABLE IF NOT EXISTS leave_requests (id INTEGER PRIMARY KEY AUTOINCREMENT, reg_id TEXT, date TEXT, reason TEXT, status TEXT DEFAULT 'Pending')")
+                cursor.execute("CREATE TABLE IF NOT EXISTS leave_requests (id SERIAL PRIMARY KEY, reg_id TEXT, date TEXT, reason TEXT, status TEXT DEFAULT 'Pending')")
                 try: cursor.execute("ALTER TABLE leave_requests ADD COLUMN admin_remarks TEXT")
                 except: pass
                 conn.commit()
